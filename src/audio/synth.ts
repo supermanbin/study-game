@@ -1,4 +1,4 @@
-export type SfxName = 'correct' | 'wrong' | 'bump' | 'explode' | 'tick' | 'bossHit' | 'item';
+export type SfxName = 'correct' | 'wrong' | 'bump' | 'explode' | 'tick' | 'bossHit' | 'item' | 'peg';
 
 interface Tone {
   freq: number;
@@ -9,13 +9,12 @@ interface Tone {
   gain?: number;
 }
 
-const SFX_TONES: Record<Exclude<SfxName, 'explode'>, Tone[]> = {
+const SFX_TONES: Record<Exclude<SfxName, 'explode' | 'peg' | 'bump'>, Tone[]> = {
   correct: [
     { freq: 660, at: 0, dur: 0.12, type: 'sine' },
     { freq: 880, at: 0.1, dur: 0.18, type: 'sine' },
   ],
   wrong: [{ freq: 300, end: 220, at: 0, dur: 0.25, type: 'triangle', gain: 0.7 }],
-  bump: [{ freq: 140, end: 90, at: 0, dur: 0.08, type: 'sine' }],
   tick: [{ freq: 1200, at: 0, dur: 0.04, type: 'square', gain: 0.25 }],
   bossHit: [
     { freq: 200, end: 100, at: 0, dur: 0.2, type: 'sawtooth', gain: 0.5 },
@@ -63,8 +62,16 @@ function playNoise(ctx: AudioContext, volume: number, base: number): void {
 }
 
 /** Short (<= 400 ms) soft synthesized effect. */
-export function playSfx(ctx: AudioContext, name: SfxName, volume: number): void {
+export function playSfx(ctx: AudioContext, name: SfxName, volume: number, intensity = 1): void {
   const now = ctx.currentTime;
+  const k = Math.min(1, Math.max(0, Number.isFinite(intensity) ? intensity : 0));
+  if (name === 'peg' || name === 'bump') {
+    // Harder hits are higher and louder: peg 900-1500 Hz sine, bump 300-675 Hz sine.
+    const freq = name === 'peg' ? 900 + 600 * k : 300 + 375 * k;
+    const dur = name === 'peg' ? 0.07 : 0.08;
+    playTone(ctx, { freq, end: freq * 0.6, at: 0, dur, type: 'sine', gain: 0.35 + 0.65 * k }, volume, now);
+    return;
+  }
   if (name === 'explode') {
     playNoise(ctx, volume, now);
     return;

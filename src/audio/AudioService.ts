@@ -9,6 +9,7 @@ export class AudioService {
   private current: Phaser.Sound.BaseSound | undefined;
   private lastVoiceId: string | undefined;
   private readonly bumpThrottle = new Throttle(80);
+  private readonly pegThrottle = new Throttle(35);
   private bgm: { stop(): void } | undefined;
   private musicOn = false;
 
@@ -50,14 +51,16 @@ export class AudioService {
     }
   }
 
-  sfx(name: SfxName): void {
+  /** `intensity` 0..1 scales volume, and pitch for 'peg' / 'bump'. */
+  sfx(name: SfxName, intensity = 1): void {
     try {
       const s = this.settings();
       if (!s.sfx) return;
       const ctx = this.ctx();
       if (!ctx) return;
       if (name === 'bump' && !this.bumpThrottle.allow(performance.now())) return;
-      playSfx(ctx, name, 1);
+      if (name === 'peg' && !this.pegThrottle.allow(performance.now())) return;
+      playSfx(ctx, name, 1, intensity);
     } catch {
       /* ignore */
     }

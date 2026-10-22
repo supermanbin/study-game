@@ -1,15 +1,19 @@
 import Phaser from 'phaser';
 import { FONT_FAMILY } from '../config';
 import { Throttle } from '../audio/pickLine';
+import type { OptionBody } from './OptionBody';
+import { GAME_HEIGHT, GAME_WIDTH } from '../config';
 import { QUESTION_AREA_BOTTOM } from './tuning';
 
 /**
- * Particles sit under the options (depth 10), the question band (50) and HUD (100), so they never cover
- * a falling option, the prompt or the HUD.
+ * Effects draw over the balls (options 10, labels 11; spec section 7 allows this for juice) but stay under
+ * the question band (50), HUD (100) and pause overlay (110), so they never cover the prompt or the HUD.
  */
-export const FX_DEPTH = 5;
-/** The combo popup lives in the HUD band, above the HUD texts but under the pause overlay (110). */
-const COMBO_POPUP_DEPTH = 105;
+export const FX_DEPTH = 20;
+const RING_DEPTH = 20;
+const FLOAT_DEPTH = 25;
+/** Centre combo popup: topmost effect, still under the question band (50). */
+const COMBO_DEPTH = 40;
 const STAR_KEY = 'fx-star';
 const CONFETTI_KEY = 'fx-confetti';
 const PUFF_KEY = 'fx-puff';
@@ -58,21 +62,92 @@ function burst(
   scene.time.delayedCall(lifespan + 60, () => em.destroy());
 }
 
-/** Stars + confetti, lifespan 550 ms. */
+/** Stars + confetti burst, ~900 ms, 36 particles (half when `small`). */
 export function explode(scene: Phaser.Scene, x: number, y: number, small = false): void {
   const n = small ? 0.5 : 1;
-  burst(scene, x, y, STAR_KEY, Math.round(14 * n), 550, {
-    speed: { min: 140, max: 380 },
-    gravityY: 300,
+  burst(scene, x, y, STAR_KEY, Math.round(18 * n), 900, {
+    speed: { min: 250, max: 650 },
+    gravityY: 600,
+    scale: { start: 1.6, end: 0 },
     rotate: { start: 0, end: 360 },
     tint: COLORS,
   });
-  burst(scene, x, y, CONFETTI_KEY, Math.round(18 * n), 550, {
-    speed: { min: 100, max: 320 },
-    gravityY: 500,
+  burst(scene, x, y, CONFETTI_KEY, Math.round(18 * n), 900, {
+    speed: { min: 250, max: 650 },
+    gravityY: 600,
+    scale: { start: 1.4, end: 0 },
     rotate: { start: 0, end: 720 },
     tint: COLORS,
   });
+}
+
+/** White ring scaling 1 -> 4 while fading, 450 ms. */
+export function shockwave(scene: Phaser.Scene, x: number, y: number): void {
+  const ring = scene.add
+    .circle(x, Math.max(QUESTION_AREA_BOTTOM, y), 42, 0xffffff, 0)
+    .setStrokeStyle(8, 0xffffff)
+    .setDepth(RING_DEPTH);
+  scene.tweens.add({ targets: ring, scale: 4, alpha: 0, duration: 450, onComplete: () => ring.destroy() });
+}
+
+/** `+N` rising 120 px and fading, 900 ms. Nothing when delta <= 0. */
+export function floatScore(scene: Phaser.Scene, x: number, y: number, delta: number): void {
+  if (delta <= 0) return;
+  const y0 = Math.max(QUESTION_AREA_BOTTOM + 130, y - 20);
+  const t = scene.add
+    .text(Phaser.Math.Clamp(x, 60, GAME_WIDTH - 60), y0, `+${delta}`, {
+      fontFamily: FONT_FAMILY,
+      fontSize: '44px',
+      fontStyle: 'bold',
+      color: '#ffd43b',
+      stroke: '#7a4b00',
+      strokeThickness: 6,
+    })
+    .setOrigin(0.5)
+    .setDepth(FLOAT_DEPTH);
+  scene.tweens.add({ targets: t, y: y0 - 120, alpha: 0, scale: 1.4, duration: 900, ease: 'Cubic.Out', onComplete: () => t.destroy() });
+}
+
+/** 「N 连击！」 96 px at the field centre, ~850 ms. */
+export function centerCombo(scene: Phaser.Scene, combo: number): void {
+  const t = scene.add
+    .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, `${combo} 连击！`, {
+      fontFamily: FONT_FAMILY,
+      fontSize: '96px',
+      fontStyle: 'bold',
+      color: '#ff6b6b',
+      stroke: '#ffffff',
+      strokeThickness: 10,
+    })
+    .setOrigin(0.5)
+    .setDepth(COMBO_DEPTH)
+    .setScale(0.3);
+  scene.tweens.add({ targets: t, scale: 1.1, duration: 250, ease: 'Back.Out', yoyo: true, hold: 300, onComplete: () => t.destroy() });
+}
+
+const SHOVE_RADIUS = 320;
+const SHOVE_STRENGTH = 16;
+const SHOVE_LIFT = 4;
+
+/** Pushes balls within 320 px away from (x, y), plus a small upward kick. Skips the origin, removed and body-less balls. */
+export function shove(scene: Phaser.Scene, x: number, y: number, balls: OptionBody[]): void {
+  for (const o of balls) {
+    if (o.state === 'removed' || !o.body) continue;
+    const dx = o.x - x;
+    const dy = o.y - y;
+    const d = Math.hypot(dx, dy);
+    if (d <= 0.5 || d >= SHOVE_RADIUS) continue; // d ~ 0: the origin ball itself
+    const f = (1 - d / SHOVE_RADIUS) * SHOVE_STRENGTH;
+    const v = o.body.velocity;
+    scene.matter.body.setVelocity(o.body, { x: v.x + (dx / d) * f, y: v.y + (dy / d) * f - SHOVE_LIFT });
+  }
+}
+
+/** Quick squash on `target` (scaleY 0.78 / scaleX 1.15), 60 ms yoyo. */
+export function squash(scene: Phaser.Scene, target: Phaser.GameObjects.Components.Transform): void {
+  scene.tweens.killTweensOf(target);
+  target.setScale(1);
+  scene.tweens.add({ targets: target, scaleX: 1.15, scaleY: 0.78, duration: 60, yoyo: true });
 }
 
 export interface Shakeable {
@@ -103,34 +178,5 @@ export function spark(scene: Phaser.Scene, x: number, y: number): void {
   burst(scene, x, y, PUFF_KEY, 5, 250, {
     speed: { min: 40, max: 120 },
     tint: 0xfff59d,
-  });
-}
-
-/**
- * 「N 连击！×m」 in the HUD band right of the combo counter (between score and prompt, above the item
- * buttons), 700 ms. Never over the play field where options emerge.
- */
-export function comboPopup(scene: Phaser.Scene, combo: number): void {
-  const mult = combo >= 10 ? 3 : combo >= 5 ? 2 : combo >= 3 ? 1.5 : 1;
-  const t = scene.add
-    .text(200, 80, `${combo} 连击！×${mult}`, {
-      fontFamily: FONT_FAMILY,
-      fontSize: '30px',
-      fontStyle: 'bold',
-      color: '#ff6f00',
-      stroke: '#ffffff',
-      strokeThickness: 6,
-    })
-    .setOrigin(0, 0.5)
-    .setDepth(COMBO_POPUP_DEPTH)
-    .setScale(0.6);
-  scene.tweens.add({ targets: t, scale: 1, duration: 150, ease: 'Back.Out' });
-  scene.tweens.add({
-    targets: t,
-    alpha: 0,
-    y: t.y - 8,
-    delay: 450,
-    duration: 250,
-    onComplete: () => t.destroy(),
   });
 }

@@ -11,7 +11,18 @@ import type { LevelId } from '../core/types';
 import type { DebuggableScene, DebugState } from '../game/debug';
 import { Hud } from '../game/Hud';
 import { Boss } from '../game/Boss';
-import { comboPopup, explode, flashWhite, greyShake, screenShake, spark } from '../game/effects';
+import {
+  centerCombo,
+  explode,
+  flashWhite,
+  floatScore,
+  greyShake,
+  screenShake,
+  shockwave,
+  shove,
+  spark,
+  squash,
+} from '../game/effects';
 import { groundedSet, isResting, outOfField, REST_MISS_MS, REST_SPEED } from '../game/motion';
 import { OptionBody } from '../game/OptionBody';
 import { Pegs } from '../game/Pegs';
@@ -46,7 +57,6 @@ export type SessionEvent =
   | { type: 'wrong'; scoreDelta: number; x: number; y: number; target: OptionBody }
   | { type: 'miss'; answerText: string }
   | { type: 'item'; item: ItemKind }
-  | { type: 'collision'; x: number; y: number }
   | { type: 'end'; result: LevelResult };
 
 export class GameScene extends Phaser.Scene implements DebuggableScene {
@@ -207,21 +217,37 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       }
     };
     this.matter.world.on('collisionstart', (e: Phaser.Physics.Matter.Events.CollisionStartEvent) => {
-      for (const p of e.pairs) {
-        const a = OptionBody.fromBody(p.bodyA);
-        const b = OptionBody.fromBody(p.bodyB);
-        if (!a && !b) continue;
-        const speed = Math.max(p.bodyA.speed, p.bodyB.speed);
-        if (speed < 2) continue;
-        const pt = p.collision.supports[0];
-        const sx = pt?.x ?? p.bodyA.position.x;
-        const sy = pt?.y ?? p.bodyA.position.y;
-        this.emitEvent({ type: 'collision', x: sx, y: sy });
-      }
+      for (const p of e.pairs) this.hitFeedback(p.bodyA, p.bodyB, p.collision.supports[0]);
     });
     this.matter.world.on('collisionstart', onCollide);
     this.matter.world.on('collisionactive', onCollide);
     // The Matter world is destroyed (with its listeners) on scene shutdown.
+  }
+
+  /** Sound and sparks for one new contact involving an option; `v` is the relative speed of the pair. */
+  private hitFeedback(bodyA: MatterJS.BodyType, bodyB: MatterJS.BodyType, at?: { x: number; y: number }): void {
+    const a = OptionBody.fromBody(bodyA);
+    const b = OptionBody.fromBody(bodyB);
+    if (!a && !b) return;
+    const v = Math.hypot(bodyA.velocity.x - bodyB.velocity.x, bodyA.velocity.y - bodyB.velocity.y);
+    const intensity = v / 15;
+    const x = at?.x ?? bodyA.position.x;
+    const y = at?.y ?? bodyA.position.y;
+    const other = a ? bodyB : bodyA;
+    const opt = (a ?? b)!;
+    if (Pegs.isPeg(other)) {
+      if (v >= 1) {
+        this.pegs?.flash(other);
+        this.audio?.sfx('peg', intensity);
+      }
+      return;
+    }
+    if (v > 4) spark(this, x, y);
+    if (v > 5 && !(a && b) && (other.parent ?? other).label === 'ground') {
+      const target = opt.squashTarget(this.time.now);
+      if (target) squash(this, target);
+    }
+    if (v > 2) this.audio?.sfx('bump', intensity);
   }
 
   private bindInput(): void {
@@ -398,8 +424,13 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
         break;
       case 'correct': {
         explode(this, e.x, e.y);
+        shockwave(this, e.x, e.y);
+        floatScore(this, e.x, e.y, e.scoreDelta);
+        this.cameras.main.shake(120, 0.004);
+        shove(this, e.x, e.y, this.options);
+        audio?.sfx('correct');
         audio?.sfx('explode');
-        if (e.combo >= 3) comboPopup(this, e.combo);
+        if (e.combo >= 3) centerCombo(this, e.combo);
         let cat: Parameters<AudioService['voice']>[0] =
           e.combo === 10 ? 'combo10' : e.combo === 5 ? 'combo5' : e.combo === 3 ? 'combo3' : 'correct';
         if (this.boss) {
@@ -440,10 +471,6 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
         break;
       case 'item':
         // Item use: no itemGet voice or award sfx (those fire on award, in the 'correct' case).
-        break;
-      case 'collision':
-        spark(this, e.x, e.y);
-        audio?.sfx('bump');
         break;
       case 'end':
         this.voice(e.result.stars === 3 ? 'threeStars' : e.result.passed ? 'levelPass' : 'levelFail');

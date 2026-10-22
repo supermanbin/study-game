@@ -71,6 +71,8 @@ export class OptionBody {
   private readonly color: number;
   private dropX: number;
   private launchIndex = 0;
+  private launchedMs = 0;
+  private squashedMs = -Infinity;
   /** Horizontal shake offset in world space, applied to both the ball face and the label. */
   private shakeX = 0;
 
@@ -124,6 +126,7 @@ export class OptionBody {
     byBody.set(body, this);
     this.body = body;
     this.spawned = true;
+    this.launchedMs = this.scene.time.now;
     this.placeAtStart(t);
     this.container.setVisible(true);
     this.text.setVisible(true);
@@ -158,6 +161,17 @@ export class OptionBody {
 
   speed(): number {
     return this.body ? this.body.speed : 0;
+  }
+
+  /**
+   * The ball face to squash on a hard hit (never the physics container: scaling that would scale the body).
+   * Null while the pop-in tween runs, during a previous squash, or when removed.
+   */
+  squashTarget(nowMs: number): Phaser.GameObjects.Container | null {
+    if (this.state === 'removed' || !this.body) return null;
+    if (nowMs - this.launchedMs < 300 || nowMs - this.squashedMs < 150) return null;
+    this.squashedMs = nowMs;
+    return this.face;
   }
 
   /** Keeps the upright label on the ball (call every frame). */
