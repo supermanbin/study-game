@@ -27,8 +27,11 @@ export class AudioService {
 
   voice(cat: VoiceCategory): void {
     try {
-      this.current?.stop();
+      // An interrupted line never fires 'complete', so destroy it here or it leaks in the sound manager.
+      const prev = this.current;
       this.current = undefined;
+      prev?.stop();
+      prev?.destroy();
       if (!this.settings().voice || this.sound.locked || !this.ctx()) return;
       const lines = VOICE_LINES[cat];
       if (!lines || lines.length === 0) return;
