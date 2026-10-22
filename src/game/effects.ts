@@ -3,8 +3,13 @@ import { FONT_FAMILY } from '../config';
 import { Throttle } from '../audio/pickLine';
 import { QUESTION_AREA_BOTTOM } from './tuning';
 
-/** Effects sit above options (depth 10) but under the question band (50) and HUD (100). */
-export const FX_DEPTH = 30;
+/**
+ * Particles sit under the options (depth 10), the question band (50) and HUD (100), so they never cover
+ * a falling option, the prompt or the HUD.
+ */
+export const FX_DEPTH = 5;
+/** The combo popup lives in the HUD band, above the HUD texts but under the pause overlay (110). */
+const COMBO_POPUP_DEPTH = 105;
 const STAR_KEY = 'fx-star';
 const CONFETTI_KEY = 'fx-confetti';
 const PUFF_KEY = 'fx-puff';
@@ -101,25 +106,29 @@ export function spark(scene: Phaser.Scene, x: number, y: number): void {
   });
 }
 
-/** 「N 连击！×m」 just under the score area, 700 ms. */
+/**
+ * 「N 连击！×m」 in the HUD band right of the combo counter (between score and prompt, above the item
+ * buttons), 700 ms. Never over the play field where options emerge.
+ */
 export function comboPopup(scene: Phaser.Scene, combo: number): void {
   const mult = combo >= 10 ? 3 : combo >= 5 ? 2 : combo >= 3 ? 1.5 : 1;
   const t = scene.add
-    .text(24, QUESTION_AREA_BOTTOM + 12, `${combo} 连击！×${mult}`, {
+    .text(200, 80, `${combo} 连击！×${mult}`, {
       fontFamily: FONT_FAMILY,
-      fontSize: '44px',
+      fontSize: '30px',
       fontStyle: 'bold',
       color: '#ff6f00',
       stroke: '#ffffff',
-      strokeThickness: 8,
+      strokeThickness: 6,
     })
-    .setDepth(FX_DEPTH + 5)
+    .setOrigin(0, 0.5)
+    .setDepth(COMBO_POPUP_DEPTH)
     .setScale(0.6);
   scene.tweens.add({ targets: t, scale: 1, duration: 150, ease: 'Back.Out' });
   scene.tweens.add({
     targets: t,
     alpha: 0,
-    y: t.y + 18,
+    y: t.y - 8,
     delay: 450,
     duration: 250,
     onComplete: () => t.destroy(),
