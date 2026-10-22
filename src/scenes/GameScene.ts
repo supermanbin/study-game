@@ -95,7 +95,11 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
         void (this.registry.get('store') as ProgressStore).save(this.progress).catch(() => undefined);
       },
     });
-    this.hud = new Hud(this, kind => this.useItem(kind));
+    this.hud = new Hud(
+      this,
+      kind => this.useItem(kind),
+      () => this.setPaused(false),
+    );
     this.buildWorld();
     this.bindInput();
     this.setupFeedback();
@@ -164,7 +168,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
 
   private bindInput(): void {
     this.input.on('pointerdown', (p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
-      if (p.worldY < QUESTION_AREA_BOTTOM || over.some(o => this.hud.isItemButton(o))) return;
+      if (p.worldY < QUESTION_AREA_BOTTOM || over.some(o => this.hud.swallowsClick(o))) return;
       const hit = this.currentOptions().find(o => o.clickable && o.contains(p.worldX, p.worldY));
       if (hit) this.onOptionPointer(hit);
     });

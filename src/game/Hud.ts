@@ -14,12 +14,14 @@ export class Hud {
   private readonly timer: Phaser.GameObjects.Text;
   private readonly itemButtons: Record<ItemKind, Phaser.GameObjects.Text>;
   private readonly overlay: Phaser.GameObjects.Container;
+  private readonly shade: Phaser.GameObjects.Rectangle;
   private revealTimer?: Phaser.Time.TimerEvent;
   private lastSecond = -1;
 
   constructor(
     private readonly scene: Phaser.Scene,
     onItem: (kind: ItemKind) => void,
+    onResume: () => void,
   ) {
     const font = { fontFamily: FONT_FAMILY };
     // The question band sits above the options so newly spawned ones emerge from under it.
@@ -59,11 +61,20 @@ export class Hud {
         .on('pointerdown', () => onItem(kind));
     this.itemButtons = { freeze: mkButton('freeze', 24), magnifier: mkButton('magnifier', 190) };
 
-    const shade = scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.45);
+    // A click anywhere on the overlay resumes too (after a blur auto-pause the child just clicks back in).
+    this.shade = scene.add
+      .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.45)
+      .setInteractive()
+      .on('pointerdown', onResume);
     const label = scene.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, '暂停中 · 按空格继续', { ...font, fontSize: '56px', color: '#ffffff' })
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, '暂停中 · 点一下或按空格继续', { ...font, fontSize: '56px', color: '#ffffff' })
       .setOrigin(0.5);
-    this.overlay = scene.add.container(0, 0, [shade, label]).setDepth(HUD_DEPTH + 10).setVisible(false);
+    this.overlay = scene.add.container(0, 0, [this.shade, label]).setDepth(HUD_DEPTH + 10).setVisible(false);
+  }
+
+  /** HUD objects that swallow a click (item buttons, pause overlay): it must not also hit an option. */
+  swallowsClick(obj: Phaser.GameObjects.GameObject): boolean {
+    return this.isItemButton(obj) || obj === this.shade;
   }
 
   isItemButton(obj: Phaser.GameObjects.GameObject): boolean {

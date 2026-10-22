@@ -59,6 +59,13 @@ test('scoring through the click path, wrong penalty, blur auto-pause', async ({ 
 
   await page.keyboard.press('Space');
   await expect.poll(async () => (await state(page)).status).toBe('playing');
+
+  // After an auto-pause a click on the overlay resumes too, without answering anything.
+  await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+  await expect.poll(async () => (await state(page)).status).toBe('paused');
+  await page.locator('canvas').click();
+  await expect.poll(async () => (await state(page)).status).toBe('playing');
+  expect((await state(page)).score).toBe(30);
   expect(errors).toEqual([]);
 });
 
