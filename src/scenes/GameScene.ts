@@ -6,18 +6,19 @@ import { applyLevelResult, recordOutcome, type ProgressData } from '../core/prog
 import { difficultyAt, type Question } from '../core/questions';
 import { mulberry32 } from '../core/rng';
 import { LevelSession, type ItemKind, type LevelResult } from '../core/session';
-import type { ProgressStore } from '../core/store';
+import { safeLocalStorage, type ProgressStore } from '../core/store';
 import type { LevelId } from '../core/types';
 import type { DebuggableScene, DebugState } from '../game/debug';
 import { Hud } from '../game/Hud';
 import { Boss } from '../game/Boss';
 import { comboPopup, explode, flashWhite, greyShake, screenShake, spark } from '../game/effects';
 import { OptionBody } from '../game/OptionBody';
+import { Pegs } from '../game/Pegs';
+import { loadTuning, type PhysicsTuning } from '../game/physicsTuning';
 import { PileOverflowTracker } from '../game/pile';
 import {
-  BASE_GRAVITY_Y,
   GROUND_Y,
-  LEVEL_FALL_FACTOR,
+  LEVEL_GRAVITY_FACTOR,
   MAX_FRAME_DELTA_MS,
   MISS_REVEAL_MS,
   PILE_OVERFLOW_MS,
@@ -55,6 +56,10 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   private voiceSeq = 0;
   /** After a miss the next question waits MISS_REVEAL_MS (scene clock, so pause stops it). */
   private pendingStart?: Phaser.Time.TimerEvent;
+  /** Physics tuning, re-read at every question start (changes apply from the next question). */
+  private tuning!: PhysicsTuning;
+  private pegs?: Pegs;
+  private pegsEnabled = false;
 
   constructor() {
     super('Game');
@@ -69,6 +74,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.boss = undefined;
     this.voiceSeq = 0;
     this.pendingStart = undefined;
+    this.pegs = undefined;
   }
 
   private get progress(): ProgressData {
@@ -86,6 +92,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   create(): void {
     this.cameras.main.setBackgroundColor('#e3f2fd');
     this.time.paused = false; // the scene clock survives restarts
+    this.tuning = loadTuning(safeLocalStorage());
     this.session = new LevelSession(getLevel(this.levelId), {
       rng: mulberry32(Date.now() >>> 0),
       stats: () => this.progress.stats,
@@ -112,9 +119,13 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     const dt = Math.min(delta, MAX_FRAME_DELTA_MS);
     s.tick(dt);
     const ts = s.timeScale();
-    // Engine timeScale alone halves fall speed while frozen; gravity carries only the difficulty ramp.
+    // Engine timeScale alone slows everything while frozen; gravity carries tuning, level and difficulty ramp.
     this.matter.world.engine.timing.timeScale = ts;
-    this.matter.world.setGravity(0, BASE_GRAVITY_Y * LEVEL_FALL_FACTOR[this.levelId] * difficultyAt(s.questionIndex).fallSpeed);
+    this.matter.world.setGravity(
+      0,
+      this.tuning.gravity * LEVEL_GRAVITY_FACTOR[this.levelId] * difficultyAt(s.questionIndex).fallSpeed,
+    );
+    for (const o of this.options) o.syncLabel();
 
     this.hud.setScore(s.score, s.combo);
     this.hud.setItems(s.items);
@@ -140,6 +151,10 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     const wallH = GAME_HEIGHT + 1000;
     this.matter.add.rectangle(-25, GAME_HEIGHT - wallH / 2, 50, wallH, { isStatic: true, label: 'wall' });
     this.matter.add.rectangle(GAME_WIDTH + 25, GAME_HEIGHT - wallH / 2, 50, wallH, { isStatic: true, label: 'wall' });
+    // Invisible ceiling: its bottom edge is the question band's bottom, so tossed balls bounce back.
+    this.matter.add.rectangle(GAME_WIDTH / 2, QUESTION_AREA_BOTTOM - 50, GAME_WIDTH + 400, 100, { isStatic: true, label: 'ceiling' });
+    this.pegs = new Pegs(this, this.tuning.pegs);
+    this.pegsEnabled = this.tuning.pegs;
 
     const onCollide = (e: Phaser.Physics.Matter.Events.CollisionStartEvent) => {
       for (const p of e.pairs) {
@@ -203,6 +218,13 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.pendingStart = undefined;
     this.serial++;
     this.options = this.options.filter(o => o.state !== 'removed');
+    this.tuning = loadTuning(safeLocalStorage());
+    if (this.tuning.pegs !== this.pegsEnabled) {
+      this.pegs?.destroy();
+      this.pegs = new Pegs(this, this.tuning.pegs);
+      this.pegsEnabled = this.tuning.pegs;
+    }
+    const tuning = this.tuning;
     const q = this.session.question;
     this.hud.setPrompt(q.prompt);
     const n = q.options.length;
@@ -219,8 +241,8 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
         colorIndex: this.serial + k,
       });
       this.options.push(opt);
-      if (k === 0) opt.drop();
-      else this.time.delayedCall(k * SPAWN_STAGGER_MS, () => opt.drop());
+      if (k === 0) opt.launch(tuning, k, x);
+      else this.time.delayedCall(k * SPAWN_STAGGER_MS, () => opt.launch(tuning, k, x));
     });
     this.emitEvent({ type: 'questionStart', index: this.session.questionIndex, question: q });
   }
