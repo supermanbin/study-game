@@ -53,6 +53,8 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   private leaving = false;
   private boss?: Boss;
   private voiceSeq = 0;
+  /** After a miss the next question waits MISS_REVEAL_MS (scene clock, so pause stops it). */
+  private pendingStart?: Phaser.Time.TimerEvent;
 
   constructor() {
     super('Game');
@@ -66,6 +68,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.leaving = false;
     this.boss = undefined;
     this.voiceSeq = 0;
+    this.pendingStart = undefined;
   }
 
   private get progress(): ProgressData {
@@ -88,6 +91,8 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       stats: () => this.progress.stats,
       onOutcome: o => {
         this.progress = recordOutcome(this.progress, o, Date.now());
+        // Fire-and-forget so closing the tab mid-level keeps the stats and cards earned so far.
+        void (this.registry.get('store') as ProgressStore).save(this.progress).catch(() => undefined);
       },
     });
     this.hud = new Hud(this, kind => this.useItem(kind));
@@ -191,6 +196,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   }
 
   private startQuestion(): void {
+    this.pendingStart = undefined;
     this.serial++;
     this.options = this.options.filter(o => o.state !== 'removed');
     const q = this.session.question;
@@ -245,22 +251,40 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
 
   private checkAllCorrectLanded(): void {
     const correct = this.currentOptions().filter(o => o.correct);
-    if (correct.length > 0 && correct.every(o => o.onPile)) this.handleMiss();
+    if (!this.pendingStart && correct.length > 0 && correct.every(o => o.onPile)) this.handleMiss();
   }
 
   private handleMiss(): void {
-    if (this.leaving || this.session.status !== 'playing') return;
+    if (this.leaving || this.pendingStart || this.session.status !== 'playing') return;
     const q = this.session.question;
     this.session.miss();
     this.hud.showAnswer(q.answerText, MISS_REVEAL_MS);
     for (const o of this.currentOptions()) o.setGrey();
     this.emitEvent({ type: 'miss', answerText: q.answerText });
-    this.afterQuestion();
+    // The answer reveal stays under the missed question; the next one starts after it (countdown keeps running).
+    this.afterQuestion(MISS_REVEAL_MS);
   }
 
-  private afterQuestion(): void {
-    if (this.session.status === 'playing') this.startQuestion();
-    else this.checkEnd();
+  private afterQuestion(delayMs = 0): void {
+    if (this.session.status !== 'playing') {
+      this.checkEnd();
+      return;
+    }
+    if (delayMs <= 0) {
+      this.startQuestion();
+      return;
+    }
+    this.pendingStart = this.time.delayedCall(delayMs, () => {
+      // A level end (time out, pile) during the reveal is handled by checkEnd in update().
+      if (!this.leaving && this.pendingStart && this.session.status === 'playing') this.startQuestion();
+    });
+  }
+
+  /** Debug only: start a question that is waiting behind the miss reveal right away. */
+  private flushPendingStart(): void {
+    if (!this.pendingStart || this.leaving) return;
+    this.pendingStart.remove();
+    this.startQuestion();
   }
 
   private useItem(kind: ItemKind): void {
@@ -412,17 +436,20 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       status: s.status,
       timeLeftMs: s.timeLeftMs,
       pileCount: this.pileOptions().length,
+      nextQuestionPending: !!this.pendingStart,
       // bossHp / bossMode exist only on boss levels (3 and 6).
       ...(s.level.boss ? { bossHp: s.bossHp(), bossMode: this.boss?.mode } : {}),
     };
   }
 
   debugAnswer(correct: boolean): void {
+    this.flushPendingStart();
     const opt = this.currentOptions().find(o => o.clickable && o.correct === correct);
     if (opt) this.onOptionPointer(opt);
   }
 
   debugDoubleClickCorrect(): void {
+    this.flushPendingStart();
     const opt = this.currentOptions().find(o => o.clickable && o.correct);
     if (!opt) return;
     this.onOptionPointer(opt);
@@ -430,6 +457,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   }
 
   debugMiss(): void {
+    this.flushPendingStart();
     this.handleMiss();
   }
 }

@@ -13,6 +13,8 @@ export interface DebugState {
   bossHp?: number;
   bossMode?: string;
   pileCount?: number;
+  /** True while the next question waits behind a miss reveal. */
+  nextQuestionPending?: boolean;
   stars?: number;
   litCards?: number;
   settings?: Settings;

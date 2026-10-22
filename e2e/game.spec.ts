@@ -7,6 +7,7 @@ type DebugState = {
   status?: string;
   timeLeftMs?: number;
   stars?: number;
+  nextQuestionPending?: boolean;
 };
 
 declare global {
@@ -92,5 +93,17 @@ test('missCurrent advances without scoring', async ({ page }) => {
   const s = await state(page);
   expect(s.questionIndex).toBe(1);
   expect(s.score).toBe(0);
+  // Progress is saved per question outcome, not only at level end.
+  const saved = JSON.parse((await page.evaluate(() => localStorage.getItem('funy-app:progress:default')))!);
+  expect(Object.keys(saved.stats).length).toBeGreaterThan(0);
+
+  // The next question waits behind the answer reveal; pausing holds it.
+  expect(s.nextQuestionPending).toBe(true);
+  await page.keyboard.press('Space');
+  await expect.poll(async () => (await state(page)).status).toBe('paused');
+  await page.waitForTimeout(1500);
+  expect((await state(page)).nextQuestionPending).toBe(true);
+  await page.keyboard.press('Space');
+  await expect.poll(async () => (await state(page)).nextQuestionPending, { timeout: 10000 }).toBe(false);
   expect(errors).toEqual([]);
 });
