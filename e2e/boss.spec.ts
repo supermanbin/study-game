@@ -41,12 +41,14 @@ test('boss level: 16 correct defeats the boss (chest mode), level continues to 2
 });
 
 test('only pile bodies are counted for overflow (missed question options)', async ({ page }) => {
+  // Level 1 options take ~10 s of game time to reach the ground; a loaded headless browser runs slower.
+  test.setTimeout(60000);
   const errors: string[] = [];
   await boot(page, errors);
   await page.evaluate(() => (window as unknown as { __funyDebug: Dbg }).__funyDebug.startLevel(1));
   await page.waitForFunction(() => (window as unknown as { __funyDebug: Dbg }).__funyDebug.state().scene === 'Game');
   expect((await state(page)).pileCount).toBe(0);
   await page.evaluate(() => (window as unknown as { __funyDebug: Dbg }).__funyDebug.missCurrent());
-  await expect.poll(async () => (await state(page)).pileCount, { timeout: 12000 }).toBeGreaterThan(0);
+  await expect.poll(async () => (await state(page)).pileCount, { timeout: 45000 }).toBeGreaterThan(0);
   expect(errors).toEqual([]);
 });

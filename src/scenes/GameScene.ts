@@ -17,6 +17,7 @@ import { PileOverflowTracker } from '../game/pile';
 import {
   BASE_GRAVITY_Y,
   GROUND_Y,
+  LEVEL_FALL_FACTOR,
   MAX_FRAME_DELTA_MS,
   MISS_REVEAL_MS,
   PILE_OVERFLOW_MS,
@@ -104,7 +105,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     const ts = s.timeScale();
     // Engine timeScale alone halves fall speed while frozen; gravity carries only the difficulty ramp.
     this.matter.world.engine.timing.timeScale = ts;
-    this.matter.world.setGravity(0, BASE_GRAVITY_Y * difficultyAt(s.questionIndex).fallSpeed);
+    this.matter.world.setGravity(0, BASE_GRAVITY_Y * LEVEL_FALL_FACTOR[this.levelId] * difficultyAt(s.questionIndex).fallSpeed);
 
     this.hud.setScore(s.score, s.combo);
     this.hud.setItems(s.items);
