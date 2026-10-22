@@ -1,0 +1,161 @@
+{
+  "voice": "zh-CN-XiaoyiNeural",
+  "lines": {
+    "correct": [
+      {
+        "id": "correct-1",
+        "text": "哇！你真是乘法小天才！"
+      },
+      {
+        "id": "correct-2",
+        "text": "答对啦！好棒呀！"
+      },
+      {
+        "id": "correct-3",
+        "text": "太厉害啦，继续加油！"
+      },
+      {
+        "id": "correct-4",
+        "text": "嘿嘿，难不倒你！"
+      },
+      {
+        "id": "correct-5",
+        "text": "耶！又对一个！"
+      }
+    ],
+    "combo3": [
+      {
+        "id": "combo3-1",
+        "text": "三连击！"
+      },
+      {
+        "id": "combo3-2",
+        "text": "连对三个啦，真棒！"
+      }
+    ],
+    "combo5": [
+      {
+        "id": "combo5-1",
+        "text": "五连击！太厉害啦！"
+      },
+      {
+        "id": "combo5-2",
+        "text": "五连击！你是乘法小能手！"
+      }
+    ],
+    "combo10": [
+      {
+        "id": "combo10-1",
+        "text": "十连击！你是乘法大王！"
+      },
+      {
+        "id": "combo10-2",
+        "text": "十连击！简直是超级英雄！"
+      }
+    ],
+    "wrong": [
+      {
+        "id": "wrong-1",
+        "text": "再想想哦～"
+      },
+      {
+        "id": "wrong-2",
+        "text": "没关系，再试一次！"
+      },
+      {
+        "id": "wrong-3",
+        "text": "差一点点啦，加油！"
+      },
+      {
+        "id": "wrong-4",
+        "text": "别着急，慢慢来～"
+      },
+      {
+        "id": "wrong-5",
+        "text": "你可以的，再看看！"
+      }
+    ],
+    "missed": [
+      {
+        "id": "missed-1",
+        "text": "时间到啦，没关系！"
+      },
+      {
+        "id": "missed-2",
+        "text": "这个有点难，下次一定行！"
+      },
+      {
+        "id": "missed-3",
+        "text": "别灰心，我们再来！"
+      }
+    ],
+    "levelPass": [
+      {
+        "id": "level-pass-1",
+        "text": "过关啦！你真棒！"
+      },
+      {
+        "id": "level-pass-2",
+        "text": "恭喜过关，好厉害！"
+      },
+      {
+        "id": "level-pass-3",
+        "text": "耶！闯关成功啦！"
+      }
+    ],
+    "levelFail": [
+      {
+        "id": "level-fail-1",
+        "text": "没关系，下次一定行！"
+      },
+      {
+        "id": "level-fail-2",
+        "text": "再来一次，你肯定可以的！"
+      },
+      {
+        "id": "level-fail-3",
+        "text": "休息一下，我们再挑战！"
+      }
+    ],
+    "threeStars": [
+      {
+        "id": "three-stars-1",
+        "text": "三颗星星全拿到啦！满分！"
+      },
+      {
+        "id": "three-stars-2",
+        "text": "哇！三星通关，太完美啦！"
+      }
+    ],
+    "bossAppear": [
+      {
+        "id": "boss-appear-1",
+        "text": "哈哈，我是调皮的大怪兽，来玩呀！"
+      },
+      {
+        "id": "boss-appear-2",
+        "text": "大怪兽来啦，快用乘法打败它！"
+      }
+    ],
+    "bossDefeated": [
+      {
+        "id": "boss-defeated-1",
+        "text": "怪兽被你打败啦，好棒！"
+      },
+      {
+        "id": "boss-defeated-2",
+        "text": "哎呀，我认输啦，你真厉害！"
+      }
+    ],
+    "itemGet": [
+      {
+        "id": "item-get-1",
+        "text": "得到一个道具，真棒！"
+      },
+      {
+        "id": "item-get-2",
+        "text": "哇，获得新道具啦！"
+      }
+    ]
+  }
+}
