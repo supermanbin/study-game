@@ -37,5 +37,10 @@ export const PEG_SPACING = 195;
 export const LEVEL_GRAVITY_FACTOR: Record<LevelId, number> = { 1: 0.8, 2: 0.8, 3: 1, 4: 1, 5: 1, 6: 1 };
 export const MISS_REVEAL_MS = 1200;
 
-/** Upper bound for the per-frame delta fed to the session clock (tab hidden → huge delta on resume). */
-export const MAX_FRAME_DELTA_MS = 100;
+/**
+ * Upper bound for the per-frame delta fed to the session clock (tab hidden → huge delta on resume).
+ * Must equal the Matter runner's `maxFrameTime` (set from this constant in `src/main.ts`): the runner
+ * simulates at most this much per frame, so below 30 fps the physics slows down and the countdown,
+ * rest and stuck timers must slow down with it, or a waiting child loses time to a slow device.
+ */
+export const MAX_FRAME_DELTA_MS = 1000 / 30;
