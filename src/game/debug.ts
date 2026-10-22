@@ -48,8 +48,9 @@ export function debugEnabled(): boolean {
   return import.meta.env.DEV || location.search.includes('debug');
 }
 
+/** Called from MenuScene.create, so the hook appears only once Boot is done. Idempotent. */
 export function installDebug(game: Phaser.Game): void {
-  if (!debugEnabled()) return;
+  if (!debugEnabled() || window.__funyDebug) return;
   const active = (): (Phaser.Scene & DebuggableScene) | undefined =>
     game.scene.getScenes(true).find(s => s.scene.key !== 'BootScene') as (Phaser.Scene & DebuggableScene) | undefined;
 

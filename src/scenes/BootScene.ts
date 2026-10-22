@@ -5,7 +5,6 @@ import { AudioService } from '../audio/AudioService';
 import { defaultProgress, type ProgressData } from '../core/progress';
 import { mulberry32 } from '../core/rng';
 import { LocalStorageProgressStore, safeLocalStorage } from '../core/store';
-import { installDebug } from '../game/debug';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -40,7 +39,6 @@ export class BootScene extends Phaser.Scene {
     const store = new LocalStorageProgressStore(safeLocalStorage());
     registry.set('store', store);
     registry.set('progress', await store.load());
-    installDebug(this.game);
     this.scene.start('Menu');
   }
 }

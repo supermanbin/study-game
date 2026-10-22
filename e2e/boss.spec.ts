@@ -14,7 +14,7 @@ async function boot(page: Page, errors: string[]) {
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => m.type() === 'error' && errors.push(m.text()));
   await page.goto('/?debug');
-  await page.waitForFunction(() => !!(window as unknown as { __funyDebug?: Dbg }).__funyDebug);
+  await page.waitForFunction(() => (window as unknown as { __funyDebug?: Dbg }).__funyDebug?.state().scene === 'Menu');
 }
 
 test('boss level: 16 correct defeats the boss (chest mode), level continues to 20', async ({ page }) => {

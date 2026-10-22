@@ -29,7 +29,7 @@ async function startLevel1(page: Page, errors: string[]) {
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => m.type() === 'error' && errors.push(m.text()));
   await page.goto('/?debug');
-  await page.waitForFunction(() => !!window.__funyDebug);
+  await page.waitForFunction(() => window.__funyDebug?.state().scene === 'Menu');
   await page.evaluate(() => window.__funyDebug.startLevel(1));
   await page.waitForFunction(() => {
     const s = window.__funyDebug.state();
