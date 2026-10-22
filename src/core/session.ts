@@ -107,7 +107,7 @@ export class LevelSession {
     return { kind: 'correct', scoreDelta: delta, combo, awardedItem, questionEnded: true };
   }
 
-  /** All correct options of the current question landed. */
+  /** All correct options of the current question came to rest (rest-based miss, decided by the scene). */
   miss(): void {
     if (this.status !== 'playing') return;
     this.combo = 0;

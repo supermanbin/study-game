@@ -53,9 +53,9 @@ export class StuckTimer {
   }
 }
 
-/** True when a ball has left the playfield: past either side by 100 px or below the ground by 200 px. */
+/** True when a ball has left the playfield: past either side by 100 px, above the top edge, or below the ground by 200 px. */
 export function outOfField(x: number, y: number, width: number, groundY: number): boolean {
-  return x < -FIELD_MARGIN || x > width + FIELD_MARGIN || y > groundY + GROUND_MARGIN;
+  return x < -FIELD_MARGIN || x > width + FIELD_MARGIN || y < 0 || y > groundY + GROUND_MARGIN;
 }
 
 /**

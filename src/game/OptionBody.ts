@@ -112,7 +112,7 @@ export class OptionBody {
 
   /** Creates the body at the toss/drop start, sets its launch velocity and spin, and pops the ball in. */
   launch(t: PhysicsTuning, index: number, x?: number): void {
-    if (this.state === 'removed' || this.body) return;
+    if (this.state === 'removed' || this.state === 'resolved' || this.body) return;
     this.launchIndex = index;
     if (x !== undefined) this.dropX = x;
     this.scene.matter.add.gameObject(this.container, {

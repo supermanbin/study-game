@@ -1,8 +1,7 @@
 import Phaser from 'phaser';
-import { FONT_FAMILY } from '../config';
+import { FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH } from '../config';
 import { Throttle } from '../audio/pickLine';
 import type { OptionBody } from './OptionBody';
-import { GAME_HEIGHT, GAME_WIDTH } from '../config';
 import { QUESTION_AREA_BOTTOM } from './tuning';
 
 /**

@@ -75,6 +75,10 @@ describe('outOfField', () => {
     expect(outOfField(640, 901, 1280, 700)).toBe(true);
   });
 
+  it('above the ceiling is out', () => {
+    expect(outOfField(640, -1, 1280, 700)).toBe(true);
+  });
+
   it('inside the field is not out', () => {
     expect(outOfField(640, 300, 1280, 700)).toBe(false);
   });
