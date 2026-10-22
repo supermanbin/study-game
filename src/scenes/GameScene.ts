@@ -107,7 +107,14 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     return this.registry.get('audio') as AudioService | undefined;
   }
 
+  /** Measurement-only: needs both `debug` and `notime` in the URL, so it never affects a normal session. */
+  private noTime = false;
+  /** Game-clock time spent playing (sum of capped frame deltas), exposed for measurement. */
+  private gameMs = 0;
+
   create(): void {
+    this.noTime = location.search.includes('debug') && location.search.includes('notime');
+    this.gameMs = 0;
     this.cameras.main.setBackgroundColor('#e3f2fd');
     this.time.paused = false; // the scene clock survives restarts
     this.tuning = loadTuning(safeLocalStorage());
@@ -135,7 +142,9 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     if (this.leaving) return;
     const s = this.session;
     const dt = Math.min(delta, MAX_FRAME_DELTA_MS);
-    s.tick(dt);
+    // `notime` (only together with `debug`) freezes the countdown so time limits can be measured.
+    s.tick(this.noTime ? 0 : dt);
+    if (s.status === 'playing') this.gameMs += dt;
     const ts = s.timeScale();
     // Engine timeScale alone slows everything while frozen; gravity carries tuning, level and difficulty ramp.
     this.matter.world.engine.timing.timeScale = ts;
@@ -536,6 +545,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       score: s.score,
       status: s.status,
       timeLeftMs: s.timeLeftMs,
+      gameMs: this.gameMs,
       pileCount: this.pileOptions().length,
       nextQuestionPending: !!this.pendingStart,
       // bossHp / bossMode exist only on boss levels (3 and 6).

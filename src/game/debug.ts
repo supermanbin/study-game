@@ -10,6 +10,8 @@ export interface DebugState {
   score?: number;
   status?: string;
   timeLeftMs?: number;
+  /** Game-clock ms spent playing the current level (unaffected by `notime`). */
+  gameMs?: number;
   bossHp?: number;
   bossMode?: string;
   pileCount?: number;

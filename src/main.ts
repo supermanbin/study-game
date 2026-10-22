@@ -7,6 +7,9 @@ import { MenuScene } from './scenes/MenuScene';
 import { LevelSelectScene } from './scenes/LevelSelectScene';
 import { CardsScene } from './scenes/CardsScene';
 import { SettingsScene } from './scenes/SettingsScene';
+import { mountTuningPanel } from './game/TuningPanel';
+
+mountTuningPanel();
 
 new Phaser.Game({
   type: Phaser.AUTO,
