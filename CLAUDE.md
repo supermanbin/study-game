@@ -29,11 +29,11 @@ node scripts/tts/generate.mjs [--force]              # regenerate voice mp3s
 
 ## Debug hook and e2e
 
-With `?debug` in the URL (or in dev mode) `src/game/debug.ts` installs `window.__funyDebug` (`answerCorrect`, `answerWrong`, `missCurrent`, `doubleClickCorrect`, `startLevel`, `unlockAll`, `press(label)`, `state()`). The e2e tests in `e2e/` drive the canvas game only through this hook (the canvas has no DOM to click), so a new scene or action that e2e needs must be exposed through `DebuggableScene` methods or `debugState()`. `press(label)` triggers buttons registered by `src/ui/Button.ts` by label, so renaming a button label breaks e2e.
+With `?debug` in the URL (or in dev mode) `src/game/debug.ts` installs `window.__funyDebug` from `MenuScene.create` (idempotent, so its existence implies Boot is done; e2e still waits for `state().scene === 'Menu'` before acting) (`answerCorrect`, `answerWrong`, `missCurrent`, `doubleClickCorrect`, `startLevel`, `unlockAll`, `press(label)`, `state()`). The e2e tests in `e2e/` drive the canvas game only through this hook (the canvas has no DOM to click), so a new scene or action that e2e needs must be exposed through `DebuggableScene` methods or `debugState()`. `press(label)` triggers buttons registered by `src/ui/Button.ts` by label, so renaming a button label breaks e2e. After a miss the next question starts `MISS_REVEAL_MS` later (`state().nextQuestionPending`); the debug answer/miss actions start a pending question immediately so tests can chain them.
 
 ## Anti-goals from the spec (constrain every change)
 
-- Never a negative score; wrong answers cost no points and no harsh penalty. Early levels must not be time-pressured.
+- Never a negative score: a wrong click costs 5 points, but the score never goes below 0, and feedback stays gentle. Early levels must not be time-pressured (fall speed per level is `LEVEL_FALL_FACTOR` in `src/game/tuning.ts`; the falling time, not the countdown, is the real per-question limit).
 - Gentle wording in UI and voice: no criticism (笨, 错了, 不行, 差劲, 失败).
 - Reverse mode (look at the product, click the expression) must judge by evaluating the expression: `12 = 3×4` and `4×3` are both correct. Never compare to a stored pair.
 - Effects stay short and must never cover the prompt, HUD or falling options.
