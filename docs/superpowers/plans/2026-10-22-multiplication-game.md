@@ -311,7 +311,7 @@ Rules:
 
 - [ ] **Step 1: Write failing tests.** Use helpers `correctId(s)` / `wrongId(s)` that read `s.question.options`.
   - First correct → `{ kind:'correct', scoreDelta:10, combo:1, questionEnded:true }`, `questionIndex === 1`.
-  - Ten correct in a row: deltas `[10,10,15,20,20,20,20,20,20,30]`, score 185. `awardedItem: 'freeze'` on the 5th, `'magnifier'` on the 10th; `items` = `{freeze:1, magnifier:1}`.
+  - Ten correct in a row: deltas `[10,10,15,15,20,20,20,20,20,30]`, score 180. `awardedItem: 'freeze'` on the 5th, `'magnifier'` on the 10th; `items` = `{freeze:1, magnifier:1}`.
   - First click wrong at t=0 → `scoreDelta 0`, score stays 0, combo 0. Click at t=499 → `ignored`. A correct click at t=500 → `lateCorrect`, delta 0, `correctCount` unchanged, outcome `wrong`.
   - Wrong after score 10 → delta −5, score 5.
   - **Review Focus 3:** clicking the same correct id twice in one ms → second is `ignored`, and `questionIndex` advanced only once. Clicking an already-wrong id again (after lockout) → `ignored`. Clicking an old question's option id is a known gap: ids restart at 0 each question. The scene must not forward clicks from options of resolved questions (Task 9 handles this). Note that in a comment in the test.
