@@ -46,18 +46,18 @@ export class Hud {
 
     const mkButton = (kind: ItemKind, x: number) =>
       scene.add
-        .text(x, GROUND_Y - 8, '', {
+        .text(x, QUESTION_AREA_BOTTOM - 6, '', {
           ...font,
-          fontSize: '26px',
+          fontSize: '22px',
           color: '#ffffff',
           backgroundColor: '#5c6bc0',
-          padding: { x: 12, y: 6 },
+          padding: { x: 10, y: 4 },
         })
         .setOrigin(0, 1)
         .setDepth(HUD_DEPTH)
         .setInteractive({ useHandCursor: true })
         .on('pointerdown', () => onItem(kind));
-    this.itemButtons = { freeze: mkButton('freeze', 16), magnifier: mkButton('magnifier', 176) };
+    this.itemButtons = { freeze: mkButton('freeze', 24), magnifier: mkButton('magnifier', 190) };
 
     const shade = scene.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.45);
     const label = scene.add

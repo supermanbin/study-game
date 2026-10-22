@@ -10,6 +10,8 @@ export interface DebugState {
   status?: string;
   timeLeftMs?: number;
   bossHp?: number;
+  bossMode?: string;
+  pileCount?: number;
   stars?: number;
   litCards?: number;
   settings?: Settings;

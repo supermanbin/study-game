@@ -10,6 +10,8 @@ import type { ProgressStore } from '../core/store';
 import type { LevelId } from '../core/types';
 import type { DebuggableScene, DebugState } from '../game/debug';
 import { Hud } from '../game/Hud';
+import { Boss } from '../game/Boss';
+import { comboPopup, explode, flashWhite, greyShake, screenShake, spark } from '../game/effects';
 import { OptionBody } from '../game/OptionBody';
 import { PileOverflowTracker } from '../game/pile';
 import {
@@ -34,9 +36,10 @@ export type SessionEvent =
   | { type: 'questionStart'; index: number; question: Question }
   | { type: 'correct'; scoreDelta: number; combo: number; x: number; y: number; awardedItem?: ItemKind }
   | { type: 'lateCorrect'; x: number; y: number }
-  | { type: 'wrong'; scoreDelta: number; x: number; y: number }
+  | { type: 'wrong'; scoreDelta: number; x: number; y: number; target: OptionBody }
   | { type: 'miss'; answerText: string }
   | { type: 'item'; item: ItemKind }
+  | { type: 'collision'; x: number; y: number }
   | { type: 'end'; result: LevelResult };
 
 export class GameScene extends Phaser.Scene implements DebuggableScene {
@@ -47,6 +50,8 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   private serial = 0;
   private tracker = new PileOverflowTracker(WARNING_LINE_Y, PILE_OVERFLOW_MS);
   private leaving = false;
+  private boss?: Boss;
+  private voiceSeq = 0;
 
   constructor() {
     super('Game');
@@ -58,6 +63,8 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.serial = 0;
     this.tracker = new PileOverflowTracker(WARNING_LINE_Y, PILE_OVERFLOW_MS);
     this.leaving = false;
+    this.boss = undefined;
+    this.voiceSeq = 0;
   }
 
   private get progress(): ProgressData {
@@ -85,6 +92,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.hud = new Hud(this, kind => this.useItem(kind));
     this.buildWorld();
     this.bindInput();
+    this.setupFeedback();
     this.startQuestion();
   }
 
@@ -103,9 +111,11 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     if (this.hud.setTime(s.timeLeftMs)) this.audio?.sfx('tick');
 
     if (s.status === 'playing') {
+      // Only pile bodies count: options of earlier (missed) questions. The current question's landed
+      // options vanish when the child answers, so they must not trip the overflow timer.
       let top: number | null = null;
-      for (const o of this.options) {
-        const y = o.onPile ? o.topY() : null;
+      for (const o of this.pileOptions()) {
+        const y = o.topY();
         if (y !== null && (top === null || y < top)) top = y;
       }
       if (this.tracker.update(dt, top)) s.failByPile();
@@ -128,6 +138,19 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       }
       this.checkAllCorrectLanded();
     };
+    this.matter.world.on('collisionstart', (e: Phaser.Physics.Matter.Events.CollisionStartEvent) => {
+      for (const p of e.pairs) {
+        const a = OptionBody.fromBody(p.bodyA);
+        const b = OptionBody.fromBody(p.bodyB);
+        if (!a && !b) continue;
+        const speed = Math.max(p.bodyA.speed, p.bodyB.speed);
+        if (speed < 2) continue;
+        const pt = p.collision.supports[0];
+        const sx = pt?.x ?? p.bodyA.position.x;
+        const sy = pt?.y ?? p.bodyA.position.y;
+        this.emitEvent({ type: 'collision', x: sx, y: sy });
+      }
+    });
     this.matter.world.on('collisionstart', onCollide);
     this.matter.world.on('collisionactive', onCollide);
     // The Matter world is destroyed (with its listeners) on scene shutdown.
@@ -156,6 +179,11 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   }
 
   // ---- questions ----
+
+  /** Bodies in the pile: settled options of earlier questions (not the current question's). */
+  private pileOptions(): OptionBody[] {
+    return this.options.filter(o => o.onPile && o.state !== 'removed' && o.questionSerial !== this.serial);
+  }
 
   private currentOptions(): OptionBody[] {
     return this.options.filter(o => o.questionSerial === this.serial);
@@ -193,9 +221,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     const r = this.session.click(opt.optionId, this.time.now);
     if (r.kind === 'ignored') return;
     if (r.kind === 'wrong') {
-      opt.setGrey();
-      opt.shake();
-      this.emitEvent({ type: 'wrong', scoreDelta: r.scoreDelta, x: opt.x, y: opt.y });
+      this.emitEvent({ type: 'wrong', scoreDelta: r.scoreDelta, x: opt.x, y: opt.y, target: opt });
       return;
     }
     if (r.kind === 'correct') {
@@ -247,6 +273,84 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     if (id === null) return;
     active.find(o => o.optionId === id)?.vanish();
     this.emitEvent({ type: 'item', item: 'magnifier' });
+  }
+
+  // ---- feedback (effects, voice, boss) ----
+
+  private setupFeedback(): void {
+    if (this.session.level.boss) {
+      this.boss = new Boss(this, 1190, 92);
+      this.boss.setHp(this.session.bossHp());
+    }
+    this.events.off('session-event');
+    this.events.on('session-event', (e: SessionEvent) => this.onSessionEvent(e));
+  }
+
+  private voice(cat: Parameters<AudioService['voice']>[0]): void {
+    this.voiceSeq++;
+    this.audio?.voice(cat);
+  }
+
+  private onSessionEvent(e: SessionEvent): void {
+    const audio = this.audio;
+    switch (e.type) {
+      case 'questionStart':
+        if (e.index === 0 && this.boss) this.voice('bossAppear');
+        break;
+      case 'correct': {
+        explode(this, e.x, e.y);
+        audio?.sfx('explode');
+        if (e.combo >= 3) comboPopup(this, e.combo);
+        let cat: Parameters<AudioService['voice']>[0] =
+          e.combo === 10 ? 'combo10' : e.combo === 5 ? 'combo5' : e.combo === 3 ? 'combo3' : 'correct';
+        if (this.boss) {
+          const hp = this.session.bossHp();
+          this.boss.setHp(hp);
+          if (this.boss.mode === 'monster') {
+            audio?.sfx('bossHit');
+            this.boss.hit();
+            flashWhite(this, this.boss.target, 120);
+            screenShake(this);
+            if (hp === 0) {
+              this.boss.defeat();
+              this.time.delayedCall(700, () => this.boss?.chestMode());
+              cat = 'bossDefeated';
+            }
+          }
+        }
+        this.voice(cat);
+        if (e.awardedItem) {
+          audio?.sfx('item');
+          // Voice lines must not cut each other: the item line follows only if nothing else spoke meanwhile.
+          const seq = this.voiceSeq;
+          this.time.delayedCall(1500, () => seq === this.voiceSeq && this.voice('itemGet'));
+        }
+        break;
+      }
+      case 'lateCorrect':
+        explode(this, e.x, e.y, true);
+        this.voice('correct');
+        break;
+      case 'wrong':
+        greyShake(this, e.target);
+        audio?.sfx('wrong');
+        this.voice('wrong');
+        break;
+      case 'miss':
+        this.voice('missed');
+        break;
+      case 'item':
+        audio?.sfx('item');
+        this.voice('itemGet');
+        break;
+      case 'collision':
+        spark(this, e.x, e.y);
+        audio?.sfx('bump');
+        break;
+      case 'end':
+        this.voice(e.result.stars === 3 ? 'threeStars' : e.result.passed ? 'levelPass' : 'levelFail');
+        break;
+    }
   }
 
   // ---- pause / exit / end ----
@@ -309,7 +413,9 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       score: s.score,
       status: s.status,
       timeLeftMs: s.timeLeftMs,
-      ...(s.level.boss ? { bossHp: s.bossHp() } : {}),
+      pileCount: this.pileOptions().length,
+      // bossHp / bossMode exist only on boss levels (3 and 6).
+      ...(s.level.boss ? { bossHp: s.bossHp(), bossMode: this.boss?.mode } : {}),
     };
   }
 
