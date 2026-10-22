@@ -61,6 +61,7 @@ export class AudioService {
   }
 
   setMusic(on: boolean): void {
+    if (on && this.musicOn && this.bgm) return; // already playing
     this.musicOn = on;
     try {
       this.bgm?.stop();

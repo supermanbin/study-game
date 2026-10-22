@@ -62,6 +62,8 @@ export function createButton(
     if (!map) {
       map = new Map();
       registry.set(scene, map);
+      // Phaser reuses one scene instance per key; drop stale handlers when the scene shuts down.
+      scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => registry.delete(scene));
     }
     map.set(label, onClick);
     c.setInteractive({ useHandCursor: true })
