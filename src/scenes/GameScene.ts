@@ -340,8 +340,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
         this.voice('missed');
         break;
       case 'item':
-        audio?.sfx('item');
-        this.voice('itemGet');
+        // Item use: no itemGet voice or award sfx (those fire on award, in the 'correct' case).
         break;
       case 'collision':
         spark(this, e.x, e.y);
