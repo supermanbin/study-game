@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from './config';
 import { BootScene } from './scenes/BootScene';
+import { GameScene } from './scenes/GameScene';
+import { ResultScene } from './scenes/ResultScene';
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -15,5 +17,5 @@ new Phaser.Game({
     default: 'matter',
     matter: { gravity: { x: 0, y: 1 } },
   },
-  scene: [BootScene],
+  scene: [BootScene, GameScene, ResultScene],
 });

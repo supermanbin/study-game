@@ -4,6 +4,8 @@ import { VOICE_LINES, voicePath } from '../audio/voiceLines';
 import { AudioService } from '../audio/AudioService';
 import { defaultProgress, type ProgressData } from '../core/progress';
 import { mulberry32 } from '../core/rng';
+import { LocalStorageProgressStore, safeLocalStorage } from '../core/store';
+import { installDebug } from '../game/debug';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -16,7 +18,7 @@ export class BootScene extends Phaser.Scene {
     }
   }
 
-  create(): void {
+  async create(): Promise<void> {
     const registry = this.game.registry;
     registry.set(
       'audio',
@@ -34,5 +36,12 @@ export class BootScene extends Phaser.Scene {
         color: '#333333',
       })
       .setOrigin(0.5);
+
+    const store = new LocalStorageProgressStore(safeLocalStorage());
+    registry.set('store', store);
+    registry.set('progress', await store.load());
+    installDebug(this.game);
+    // Task 11 routes to the menu instead.
+    this.scene.start('Game', { levelId: 1 });
   }
 }
