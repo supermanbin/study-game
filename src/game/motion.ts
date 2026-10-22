@@ -57,3 +57,32 @@ export class StuckTimer {
 export function outOfField(x: number, y: number, width: number, groundY: number): boolean {
   return x < -FIELD_MARGIN || x > width + FIELD_MARGIN || y > groundY + GROUND_MARGIN;
 }
+
+/**
+ * Supported balls for one frame: the grounded ones plus everything reachable from them through this
+ * frame's ball-ball contacts. Support is never carried over from earlier frames, so balls that only touch
+ * each other (e.g. a pair resting on pegs) are unsupported.
+ */
+export function groundedSet<T>(pairs: Iterable<readonly [T, T]>, grounded: Iterable<T>): Set<T> {
+  const adj = new Map<T, T[]>();
+  const link = (a: T, b: T) => {
+    const l = adj.get(a);
+    if (l) l.push(b);
+    else adj.set(a, [b]);
+  };
+  for (const [a, b] of pairs) {
+    link(a, b);
+    link(b, a);
+  }
+  const out = new Set<T>(grounded);
+  const queue = [...out];
+  while (queue.length > 0) {
+    for (const n of adj.get(queue.pop()!) ?? []) {
+      if (!out.has(n)) {
+        out.add(n);
+        queue.push(n);
+      }
+    }
+  }
+  return out;
+}

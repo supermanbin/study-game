@@ -26,8 +26,8 @@ const LABEL_DEPTH = 11;
 const TOSS_LEFT_X = 70;
 const TOSS_RIGHT_X = GAME_WIDTH - 70;
 const byBody = new WeakMap<MatterJS.BodyType, OptionBody>();
-/** A support contact older than this no longer counts. */
-const SUPPORT_WINDOW_MS = 100;
+/** Grace window for direct ground contact only (contact flicker); propagated support gets none. */
+const GROUND_GRACE_MS = 100;
 
 export interface OptionSpec {
   questionSerial: number;
@@ -50,8 +50,10 @@ export class OptionBody {
   readonly correct: boolean;
   readonly radius: number;
   state: OptionState = 'falling';
-  /** Scene time of the last contact with the ground or a grey ball (set by GameScene). */
-  lastSupportMs = -Infinity;
+  /** Scene time of the last direct contact with the ground (set by GameScene). */
+  lastGroundMs = -Infinity;
+  /** Supported this frame: grounded, or chained to a grounded ball (set by GameScene each frame). */
+  supported = false;
   /** Continuous resting time (supported and slow). */
   readonly rest = new RestTimer();
   /** Slow-but-unsupported detector (stuck on pegs). */
@@ -139,9 +141,9 @@ export class OptionBody {
     this.syncLabel();
   }
 
-  /** Recent contact with the ground or a grey ball. */
-  supported(nowMs: number): boolean {
-    return nowMs - this.lastSupportMs < SUPPORT_WINDOW_MS;
+  /** Recent direct contact with the ground. */
+  grounded(nowMs: number): boolean {
+    return nowMs - this.lastGroundMs < GROUND_GRACE_MS;
   }
 
   /** Small sideways push for a ball stuck on the pegs. */

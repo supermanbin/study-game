@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { RestTimer, StuckTimer, isResting, outOfField } from './motion';
+import { RestTimer, StuckTimer, groundedSet, isResting, outOfField } from './motion';
 
 describe('isResting', () => {
   it('slow and supported is resting', () => {
@@ -77,5 +77,23 @@ describe('outOfField', () => {
 
   it('inside the field is not out', () => {
     expect(outOfField(640, 300, 1280, 700)).toBe(false);
+  });
+});
+
+describe('groundedSet', () => {
+  it('a chain down to a grounded ball is all supported', () => {
+    const s = groundedSet<string>([['C', 'B'], ['B', 'A']], ['A']);
+    expect([...s].sort()).toEqual(['A', 'B', 'C']);
+  });
+
+  it('two balls touching each other but not the ground are not supported', () => {
+    const s = groundedSet<string>([['A', 'B'], ['C', 'G']], ['G']);
+    expect(s.has('A')).toBe(false);
+    expect(s.has('B')).toBe(false);
+    expect(s.has('C')).toBe(true);
+  });
+
+  it('a cycle with no ground supports nothing', () => {
+    expect(groundedSet<string>([['A', 'B'], ['B', 'A']], []).size).toBe(0);
   });
 });

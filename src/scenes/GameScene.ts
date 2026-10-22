@@ -12,7 +12,7 @@ import type { DebuggableScene, DebugState } from '../game/debug';
 import { Hud } from '../game/Hud';
 import { Boss } from '../game/Boss';
 import { comboPopup, explode, flashWhite, greyShake, screenShake, spark } from '../game/effects';
-import { isResting, outOfField, REST_MISS_MS, REST_SPEED } from '../game/motion';
+import { groundedSet, isResting, outOfField, REST_MISS_MS, REST_SPEED } from '../game/motion';
 import { OptionBody } from '../game/OptionBody';
 import { Pegs } from '../game/Pegs';
 import { loadTuning, type PhysicsTuning } from '../game/physicsTuning';
@@ -65,7 +65,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   private tuning!: PhysicsTuning;
   private pegs?: Pegs;
   private pegsEnabled = false;
-  /** Option-option contacts since the last update(), used to pass support up through a stack of balls. */
+  /** Option-option contacts since the last update(); support passes from grounded balls through these. */
   private contacts: [OptionBody, OptionBody][] = [];
 
   constructor() {
@@ -162,28 +162,17 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   private updateMotion(dt: number): void {
     const now = this.time.now;
     const live = this.options.filter(o => o.body);
-    // Support passes up a stack: a ball lying on a supported ball is supported too.
-    for (let changed = true, pass = 0; changed && pass < live.length; pass++) {
-      changed = false;
-      for (const [a, b] of this.contacts) {
-        if (a.supported(now) && !b.supported(now)) {
-          b.lastSupportMs = now;
-          changed = true;
-        } else if (b.supported(now) && !a.supported(now)) {
-          a.lastSupportMs = now;
-          changed = true;
-        }
-      }
-    }
+    // Support must be grounded: fresh each frame from ground contacts, then through this frame's contacts.
+    const supported = groundedSet(this.contacts, live.filter(o => o.grounded(now)));
+    for (const o of live) o.supported = supported.has(o);
     for (const o of live) {
       if (outOfField(o.x, o.y, GAME_WIDTH, GROUND_Y)) {
         o.respawn(this.tuning);
         continue;
       }
       const speed = o.speed();
-      const supported = o.supported(now);
-      if (o.stuck.update(dt, speed < REST_SPEED, supported)) o.nudge();
-      o.rest.update(dt, isResting(speed, supported));
+      if (o.stuck.update(dt, speed < REST_SPEED, o.supported)) o.nudge();
+      o.rest.update(dt, isResting(speed, o.supported));
     }
   }
 
@@ -212,8 +201,8 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       for (const p of e.pairs) {
         const a = OptionBody.fromBody(p.bodyA);
         const b = OptionBody.fromBody(p.bodyB);
-        this.markSupport(a, p.bodyB);
-        this.markSupport(b, p.bodyA);
+        this.markGround(a, p.bodyB);
+        this.markGround(b, p.bodyA);
         if (a && b) this.contacts.push([a, b]);
       }
     };
@@ -330,12 +319,9 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.afterQuestion(NEXT_AFTER_CORRECT_MS);
   }
 
-  /** Records ground / grey-ball contact on `opt` (called for both sides of every touching pair). */
-  private markSupport(opt: OptionBody | undefined, other: MatterJS.BodyType): void {
-    if (!opt || opt.state === 'removed') return;
-    if ((other.parent ?? other).label === 'ground' || OptionBody.fromBody(other)?.state === 'grey') {
-      opt.lastSupportMs = this.time.now;
-    }
+  /** Records direct ground contact on `opt` (called for both sides of every touching pair). */
+  private markGround(opt: OptionBody | undefined, other: MatterJS.BodyType): void {
+    if (opt && opt.state !== 'removed' && (other.parent ?? other).label === 'ground') opt.lastGroundMs = this.time.now;
   }
 
   private handleMiss(): void {
