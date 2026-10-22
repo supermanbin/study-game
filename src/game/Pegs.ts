@@ -16,6 +16,25 @@ export function pegPositions(width = GAME_WIDTH): { x: number; y: number }[] {
   return out;
 }
 
+/**
+ * Returns an x near `x` where a ball of radius `r` centred at height `y` does not overlap any row-0 peg,
+ * staying inside [min, max]. Shifts away from the offending peg, or the other way when that leaves the range.
+ */
+export function clearOfPegsX(x: number, y: number, r: number, min: number, max: number, width = GAME_WIDTH): number {
+  const minD = r + PEG_RADIUS + 2;
+  const dy = Math.abs(PEG_ROWS_Y[0] - y);
+  let out = Math.min(max, Math.max(min, x));
+  if (dy >= minD) return out;
+  const needDx = Math.sqrt(minD * minD - dy * dy) + 1;
+  for (const p of pegPositions(width)) {
+    if (p.y !== PEG_ROWS_Y[0] || Math.abs(out - p.x) >= needDx) continue;
+    const away = out >= p.x ? p.x + needDx : p.x - needDx;
+    const other = out >= p.x ? p.x - needDx : p.x + needDx;
+    out = away >= min && away <= max ? away : other;
+  }
+  return out;
+}
+
 /** Static bouncy pegs (pachinko style) between the question band and the pile. */
 export class Pegs {
   private readonly scene: Phaser.Scene;

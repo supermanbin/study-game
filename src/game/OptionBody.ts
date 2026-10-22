@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
 import { FONT_FAMILY, GAME_WIDTH } from '../config';
+import { RestTimer, StuckTimer } from './motion';
+import { clearOfPegsX } from './Pegs';
 import type { PhysicsTuning } from './physicsTuning';
 import {
   BALL_DENSITY,
@@ -13,7 +15,8 @@ import {
   TOSS_Y,
 } from './tuning';
 
-export type OptionState = 'falling' | 'landed' | 'grey' | 'removed';
+/** `resolved`: the question was answered; the ball waits for its fade-out and is no longer clickable. */
+export type OptionState = 'falling' | 'grey' | 'resolved' | 'removed';
 
 const COLORS = [0xff8a65, 0x4fc3f7, 0x81c784, 0xffd54f, 0xba68c8, 0x4db6ac, 0xf06292];
 const GREY = 0xbdbdbd;
@@ -23,6 +26,8 @@ const LABEL_DEPTH = 11;
 const TOSS_LEFT_X = 70;
 const TOSS_RIGHT_X = GAME_WIDTH - 70;
 const byBody = new WeakMap<MatterJS.BodyType, OptionBody>();
+/** A support contact older than this no longer counts. */
+const SUPPORT_WINDOW_MS = 100;
 
 export interface OptionSpec {
   questionSerial: number;
@@ -45,8 +50,14 @@ export class OptionBody {
   readonly correct: boolean;
   readonly radius: number;
   state: OptionState = 'falling';
-  /** Touched the ground or another pile body. */
-  onPile = false;
+  /** Scene time of the last contact with the ground or a grey ball (set by GameScene). */
+  lastSupportMs = -Infinity;
+  /** Continuous resting time (supported and slow). */
+  readonly rest = new RestTimer();
+  /** Slow-but-unsupported detector (stuck on pegs). */
+  readonly stuck = new StuckTimer();
+  /** True once `launch` has put the ball into the world. */
+  spawned = false;
   body: MatterJS.BodyType | null = null;
 
   private readonly scene: Phaser.Scene;
@@ -110,6 +121,7 @@ export class OptionBody {
     const body = (this.container as unknown as { body: MatterJS.BodyType }).body;
     byBody.set(body, this);
     this.body = body;
+    this.spawned = true;
     this.placeAtStart(t);
     this.container.setVisible(true);
     this.text.setVisible(true);
@@ -123,7 +135,18 @@ export class OptionBody {
   respawn(t: PhysicsTuning): void {
     if (!this.body || this.state === 'removed') return;
     this.placeAtStart(t);
+    this.rest.reset();
     this.syncLabel();
+  }
+
+  /** Recent contact with the ground or a grey ball. */
+  supported(nowMs: number): boolean {
+    return nowMs - this.lastSupportMs < SUPPORT_WINDOW_MS;
+  }
+
+  /** Small sideways push for a ball stuck on the pegs. */
+  nudge(): void {
+    if (this.body) this.scene.matter.body.setVelocity(this.body, { x: Math.random() < 0.5 ? -2 : 2, y: -1 });
   }
 
   /** Wrong/missed balls get heavier and sink into the pile. */
@@ -145,11 +168,11 @@ export class OptionBody {
   }
 
   get clickable(): boolean {
-    return this.state === 'falling' || this.state === 'landed';
+    return this.state === 'falling';
   }
 
   setGrey(): void {
-    if (this.state === 'removed') return;
+    if (this.state === 'removed' || this.state === 'resolved') return;
     this.state = 'grey';
     this.draw(GREY);
     this.text.setColor('#757575');
@@ -175,8 +198,8 @@ export class OptionBody {
   vanish(): void {
     if (this.state === 'removed') return;
     this.state = 'removed';
-    this.onPile = false;
-    this.scene.tweens.killTweensOf(this);
+    // Pop-in (face, text) and shake (this) tweens must not fight the fade-out.
+    this.scene.tweens.killTweensOf([this, this.face, this.text]);
     if (this.body) {
       this.scene.matter.world.remove(this.body);
       this.body = null;
@@ -224,13 +247,14 @@ export class OptionBody {
     let x: number, y: number, vx: number, vy: number;
     if (t.launch === 'toss') {
       const left = this.launchIndex % 2 === 0;
-      x = left ? TOSS_LEFT_X : TOSS_RIGHT_X;
       y = Math.max(TOSS_Y, minY);
+      x = clearOfPegsX(left ? TOSS_LEFT_X : TOSS_RIGHT_X, y, this.radius, this.radius, GAME_WIDTH - this.radius);
       vx = (left ? 1 : -1) * Phaser.Math.FloatBetween(5, 11);
       vy = Phaser.Math.FloatBetween(-7, -2);
     } else {
-      x = Phaser.Math.Clamp(this.dropX, SPAWN_X_MIN, SPAWN_X_MAX);
       y = minY;
+      // Keep the ball horizontally clear of the top peg row so it never spawns overlapping a peg.
+      x = clearOfPegsX(this.dropX, y, this.radius, SPAWN_X_MIN, SPAWN_X_MAX);
       vx = Phaser.Math.FloatBetween(-2, 2);
       vy = 0;
     }

@@ -17,6 +17,7 @@ declare global {
       answerWrong(): void;
       missCurrent(): void;
       doubleClickCorrect(): void;
+      clickResolvedOption(): void;
       startLevel(id: number): void;
       unlockAll(): void;
       state(): DebugState;
@@ -27,6 +28,7 @@ declare global {
 const state = (page: Page) => page.evaluate(() => window.__funyDebug.state());
 
 async function startLevel1(page: Page, errors: string[]) {
+  await page.addInitScript(() => localStorage.removeItem('funy-app:physics-tuning'));
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => m.type() === 'error' && errors.push(m.text()));
   await page.goto('/?debug');
@@ -112,5 +114,60 @@ test('missCurrent advances without scoring', async ({ page }) => {
   expect((await state(page)).nextQuestionPending).toBe(true);
   await page.keyboard.press('Space');
   await expect.poll(async () => (await state(page)).nextQuestionPending, { timeout: 10000 }).toBe(false);
+  expect(errors).toEqual([]);
+});
+
+test('options of an answered question cannot be clicked during the fade (Review Focus 1)', async ({ page }) => {
+  const errors: string[] = [];
+  await startLevel1(page, errors);
+  await page.evaluate(() => window.__funyDebug.answerCorrect());
+  let s = await state(page);
+  expect(s.score).toBe(10);
+  expect(s.questionIndex).toBe(1);
+  await page.evaluate(() => window.__funyDebug.clickResolvedOption());
+  s = await state(page);
+  expect(s.score).toBe(10);
+  expect(s.questionIndex).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('pausing right after a correct answer holds the next question (Review Focus 4)', async ({ page }) => {
+  const errors: string[] = [];
+  await startLevel1(page, errors);
+  await page.evaluate(() => window.__funyDebug.answerCorrect());
+  await page.keyboard.press('Space');
+  await page.waitForTimeout(1500);
+  let s = await state(page);
+  expect(s.status).toBe('paused');
+  expect(s.questionIndex).toBe(1);
+  expect(s.nextQuestionPending).toBe(true);
+  const pausedLeft = s.timeLeftMs!;
+  await page.keyboard.press('Space');
+  // "Within 2 s" on the game clock: an unfocused headless page runs Phaser slower than real time
+  // (TimeStep clamps delta when not in focus), so the real-time poll gets more slack.
+  await expect.poll(async () => (await state(page)).nextQuestionPending, { timeout: 10000 }).toBe(false);
+  s = await state(page);
+  expect(pausedLeft - s.timeLeftMs!).toBeLessThan(2000);
+  expect(s.questionIndex).toBe(1);
+  expect(errors).toEqual([]);
+});
+
+test('Esc right after a correct answer returns to level select cleanly', async ({ page }) => {
+  const errors: string[] = [];
+  await startLevel1(page, errors);
+  await page.evaluate(() => window.__funyDebug.answerCorrect());
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => (await state(page)).scene).toBe('LevelSelect');
+  await page.waitForTimeout(1200);
+  expect((await state(page)).scene).toBe('LevelSelect');
+  expect(errors).toEqual([]);
+});
+
+test('a question is missed by itself once its correct balls rest', async ({ page }) => {
+  test.setTimeout(45000);
+  const errors: string[] = [];
+  await startLevel1(page, errors);
+  await expect.poll(async () => (await state(page)).questionIndex, { timeout: 30000 }).toBe(1);
+  expect((await state(page)).score).toBe(0);
   expect(errors).toEqual([]);
 });

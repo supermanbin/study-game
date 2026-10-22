@@ -13,7 +13,7 @@ export interface DebugState {
   bossHp?: number;
   bossMode?: string;
   pileCount?: number;
-  /** True while the next question waits behind a miss reveal. */
+  /** True while the next question waits (miss reveal or post-correct fade). */
   nextQuestionPending?: boolean;
   stars?: number;
   litCards?: number;
@@ -26,6 +26,8 @@ export interface FunyDebug {
   missCurrent(): void;
   /** Fires the pointer-click path twice synchronously on the same correct option. */
   doubleClickCorrect(): void;
+  /** Fires the pointer path on a 'resolved' option of the current question (must change nothing). */
+  clickResolvedOption(): void;
   startLevel(id: LevelId): void;
   unlockAll(): void;
   press(label: string): void;
@@ -38,6 +40,7 @@ export interface DebuggableScene {
   debugAnswer?(correct: boolean): void;
   debugMiss?(): void;
   debugDoubleClickCorrect?(): void;
+  debugClickResolved?(): void;
 }
 
 declare global {
@@ -61,6 +64,7 @@ export function installDebug(game: Phaser.Game): void {
     answerWrong: () => active()?.debugAnswer?.(false),
     missCurrent: () => active()?.debugMiss?.(),
     doubleClickCorrect: () => active()?.debugDoubleClickCorrect?.(),
+    clickResolvedOption: () => active()?.debugClickResolved?.(),
     startLevel: (id: LevelId) => {
       for (const s of game.scene.getScenes(true)) if (s.scene.key !== 'Game') game.scene.stop(s.scene.key);
       game.scene.start('Game', { levelId: id });

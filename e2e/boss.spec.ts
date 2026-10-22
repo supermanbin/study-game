@@ -11,6 +11,7 @@ type Dbg = {
 const state = (page: Page) => page.evaluate(() => (window as unknown as { __funyDebug: Dbg }).__funyDebug.state());
 
 async function boot(page: Page, errors: string[]) {
+  await page.addInitScript(() => localStorage.removeItem('funy-app:physics-tuning'));
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => m.type() === 'error' && errors.push(m.text()));
   await page.goto('/?debug');

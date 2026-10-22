@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GAME_WIDTH } from '../config';
-import { pegPositions } from './Pegs';
+import { clearOfPegsX, pegPositions } from './Pegs';
 import { EXPR_RADIUS, NUMBER_RADIUS, PEG_RADIUS, PEG_ROWS_Y, WARNING_LINE_Y } from './tuning';
 
 describe('pegPositions', () => {
@@ -28,5 +28,24 @@ describe('pegPositions', () => {
 
   it('keeps every peg above the warning line', () => {
     for (const p of pegs) expect(p.y + PEG_RADIUS).toBeLessThan(WARNING_LINE_Y);
+  });
+});
+
+describe('clearOfPegsX', () => {
+  const row0 = pegPositions().filter(p => p.y === PEG_ROWS_Y[0]);
+  const y = 140 + EXPR_RADIUS + 2;
+  const overlaps = (x: number) => row0.some(p => Math.hypot(p.x - x, p.y - y) < EXPR_RADIUS + PEG_RADIUS);
+
+  it('moves an expression ball off every row-0 peg and stays in range', () => {
+    for (let x = 120; x <= 1160; x += 5) {
+      const out = clearOfPegsX(x, y, EXPR_RADIUS, 120, 1160);
+      expect(overlaps(out)).toBe(false);
+      expect(out).toBeGreaterThanOrEqual(120);
+      expect(out).toBeLessThanOrEqual(1160);
+    }
+  });
+
+  it('leaves a clear x unchanged', () => {
+    expect(clearOfPegsX(250, y, EXPR_RADIUS, 120, 1160)).toBe(250);
   });
 });

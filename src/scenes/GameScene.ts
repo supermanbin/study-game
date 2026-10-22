@@ -12,6 +12,7 @@ import type { DebuggableScene, DebugState } from '../game/debug';
 import { Hud } from '../game/Hud';
 import { Boss } from '../game/Boss';
 import { comboPopup, explode, flashWhite, greyShake, screenShake, spark } from '../game/effects';
+import { isResting, outOfField, REST_MISS_MS, REST_SPEED } from '../game/motion';
 import { OptionBody } from '../game/OptionBody';
 import { Pegs } from '../game/Pegs';
 import { loadTuning, type PhysicsTuning } from '../game/physicsTuning';
@@ -28,6 +29,10 @@ import {
   SPAWN_X_MIN,
   WARNING_LINE_Y,
 } from '../game/tuning';
+
+/** After a correct answer: the other balls fade at this point, the next question starts after the second. */
+const RESOLVED_VANISH_MS = 700;
+const NEXT_AFTER_CORRECT_MS = 950;
 
 export interface GameSceneData {
   levelId: LevelId;
@@ -60,6 +65,8 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   private tuning!: PhysicsTuning;
   private pegs?: Pegs;
   private pegsEnabled = false;
+  /** Option-option contacts since the last update(), used to pass support up through a stack of balls. */
+  private contacts: [OptionBody, OptionBody][] = [];
 
   constructor() {
     super('Game');
@@ -75,6 +82,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.voiceSeq = 0;
     this.pendingStart = undefined;
     this.pegs = undefined;
+    this.contacts = [];
   }
 
   private get progress(): ProgressData {
@@ -126,22 +134,66 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       this.tuning.gravity * LEVEL_GRAVITY_FACTOR[this.levelId] * difficultyAt(s.questionIndex).fallSpeed,
     );
     for (const o of this.options) o.syncLabel();
+    if (s.status === 'playing') {
+      this.updateMotion(dt);
+      this.checkMiss();
+    }
+    this.contacts = [];
 
     this.hud.setScore(s.score, s.combo);
     this.hud.setItems(s.items);
     if (this.hud.setTime(s.timeLeftMs)) this.audio?.sfx('tick');
 
     if (s.status === 'playing') {
-      // Only pile bodies count: options of earlier (missed) questions. The current question's landed
-      // options vanish when the child answers, so they must not trip the overflow timer.
+      // Only resting pile bodies count: options of earlier (missed) questions. The current question's
+      // options vanish when the child answers, and balls knocked flying by a shove are not settled.
       let top: number | null = null;
       for (const o of this.pileOptions()) {
+        if (o.rest.ms <= 0) continue;
         const y = o.topY();
         if (y !== null && (top === null || y < top)) top = y;
       }
       if (this.tracker.update(dt, top)) s.failByPile();
     }
     this.checkEnd();
+  }
+
+  /** Escape respawn, stuck nudge and rest timing for every ball in the world. */
+  private updateMotion(dt: number): void {
+    const now = this.time.now;
+    const live = this.options.filter(o => o.body);
+    // Support passes up a stack: a ball lying on a supported ball is supported too.
+    for (let changed = true, pass = 0; changed && pass < live.length; pass++) {
+      changed = false;
+      for (const [a, b] of this.contacts) {
+        if (a.supported(now) && !b.supported(now)) {
+          b.lastSupportMs = now;
+          changed = true;
+        } else if (b.supported(now) && !a.supported(now)) {
+          a.lastSupportMs = now;
+          changed = true;
+        }
+      }
+    }
+    for (const o of live) {
+      if (outOfField(o.x, o.y, GAME_WIDTH, GROUND_Y)) {
+        o.respawn(this.tuning);
+        continue;
+      }
+      const speed = o.speed();
+      const supported = o.supported(now);
+      if (o.stuck.update(dt, speed < REST_SPEED, supported)) o.nudge();
+      o.rest.update(dt, isResting(speed, supported));
+    }
+  }
+
+  /** Miss: every option has spawned and every correct ball has rested for REST_MISS_MS. */
+  private checkMiss(): void {
+    if (this.pendingStart) return;
+    const current = this.currentOptions().filter(o => o.state !== 'removed');
+    const correct = current.filter(o => o.correct);
+    if (correct.length === 0 || !current.every(o => o.spawned)) return;
+    if (correct.every(o => o.rest.ms >= REST_MISS_MS)) this.handleMiss();
   }
 
   // ---- setup ----
@@ -158,10 +210,12 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
 
     const onCollide = (e: Phaser.Physics.Matter.Events.CollisionStartEvent) => {
       for (const p of e.pairs) {
-        this.markLanded(p.bodyA, p.bodyB);
-        this.markLanded(p.bodyB, p.bodyA);
+        const a = OptionBody.fromBody(p.bodyA);
+        const b = OptionBody.fromBody(p.bodyB);
+        this.markSupport(a, p.bodyB);
+        this.markSupport(b, p.bodyA);
+        if (a && b) this.contacts.push([a, b]);
       }
-      this.checkAllCorrectLanded();
     };
     this.matter.world.on('collisionstart', (e: Phaser.Physics.Matter.Events.CollisionStartEvent) => {
       for (const p of e.pairs) {
@@ -205,9 +259,9 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
 
   // ---- questions ----
 
-  /** Bodies in the pile: settled options of earlier questions (not the current question's). */
+  /** Bodies in the pile: grey options of earlier questions (not the current question's). */
   private pileOptions(): OptionBody[] {
-    return this.options.filter(o => o.onPile && o.state !== 'removed' && o.questionSerial !== this.serial);
+    return this.options.filter(o => o.state === 'grey' && o.questionSerial !== this.serial);
   }
 
   private currentOptions(): OptionBody[] {
@@ -217,6 +271,8 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   private startQuestion(): void {
     this.pendingStart = undefined;
     this.serial++;
+    // Normally gone at RESOLVED_VANISH_MS already; a flushed start (debug) must not leave them stacking up.
+    for (const o of this.options) if (o.state === 'resolved') o.vanish();
     this.options = this.options.filter(o => o.state !== 'removed');
     this.tuning = loadTuning(safeLocalStorage());
     if (this.tuning.pegs !== this.pegsEnabled) {
@@ -254,6 +310,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     const r = this.session.click(opt.optionId, this.time.now);
     if (r.kind === 'ignored') return;
     if (r.kind === 'wrong') {
+      opt.heavy();
       this.emitEvent({ type: 'wrong', scoreDelta: r.scoreDelta, x: opt.x, y: opt.y, target: opt });
       return;
     }
@@ -262,22 +319,23 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     } else {
       this.emitEvent({ type: 'lateCorrect', x: opt.x, y: opt.y });
     }
-    for (const o of this.currentOptions()) o.vanish();
-    this.afterQuestion();
+    // Review Focus 1: the rest of this question (greyed ones too) is unclickable right away and fades later.
+    const others = this.currentOptions().filter(o => o !== opt && o.state !== 'removed');
+    for (const o of others) o.state = 'resolved';
+    opt.vanish();
+    this.time.delayedCall(RESOLVED_VANISH_MS, () => {
+      if (this.leaving) return;
+      for (const o of others) o.vanish();
+    });
+    this.afterQuestion(NEXT_AFTER_CORRECT_MS);
   }
 
-  private markLanded(body: MatterJS.BodyType, other: MatterJS.BodyType): void {
-    const opt = OptionBody.fromBody(body);
-    if (!opt || opt.onPile || opt.state === 'removed') return;
-    const otherOpt = OptionBody.fromBody(other);
-    if ((other.parent ?? other).label !== 'ground' && !otherOpt?.onPile) return;
-    opt.onPile = true;
-    if (opt.state === 'falling') opt.state = 'landed';
-  }
-
-  private checkAllCorrectLanded(): void {
-    const correct = this.currentOptions().filter(o => o.correct);
-    if (!this.pendingStart && correct.length > 0 && correct.every(o => o.onPile)) this.handleMiss();
+  /** Records ground / grey-ball contact on `opt` (called for both sides of every touching pair). */
+  private markSupport(opt: OptionBody | undefined, other: MatterJS.BodyType): void {
+    if (!opt || opt.state === 'removed') return;
+    if ((other.parent ?? other).label === 'ground' || OptionBody.fromBody(other)?.state === 'grey') {
+      opt.lastSupportMs = this.time.now;
+    }
   }
 
   private handleMiss(): void {
@@ -285,7 +343,10 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     const q = this.session.question;
     this.session.miss();
     this.hud.showAnswer(q.answerText, MISS_REVEAL_MS);
-    for (const o of this.currentOptions()) o.setGrey();
+    for (const o of this.currentOptions()) {
+      o.setGrey();
+      o.heavy();
+    }
     this.emitEvent({ type: 'miss', answerText: q.answerText });
     // The answer reveal stays under the missed question; the next one starts after it (countdown keeps running).
     this.afterQuestion(MISS_REVEAL_MS);
@@ -300,13 +361,14 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       this.startQuestion();
       return;
     }
+    // Scene clock: pausing holds it. Debug answers flush it (flushPendingStart) to keep e2e fast.
     this.pendingStart = this.time.delayedCall(delayMs, () => {
-      // A level end (time out, pile) during the reveal is handled by checkEnd in update().
+      // A level end (time out, pile) during the wait is handled by checkEnd in update().
       if (!this.leaving && this.pendingStart && this.session.status === 'playing') this.startQuestion();
     });
   }
 
-  /** Debug only: start a question that is waiting behind the miss reveal right away. */
+  /** Debug only: start a question that is waiting (miss reveal or post-correct fade) right away. */
   private flushPendingStart(): void {
     if (!this.pendingStart || this.leaving) return;
     this.pendingStart.remove();
@@ -480,6 +542,12 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     if (!opt) return;
     this.onOptionPointer(opt);
     this.onOptionPointer(opt);
+  }
+
+  /** Fires the pointer path on a resolved option of the current serial (must be ignored). */
+  debugClickResolved(): void {
+    const opt = this.currentOptions().find(o => o.state === 'resolved');
+    if (opt) this.onOptionPointer(opt);
   }
 
   debugMiss(): void {
