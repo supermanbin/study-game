@@ -43,10 +43,8 @@ const WRONG_PENALTY = 5;
 const LOCKOUT_MS = 500;
 const FREEZE_MS = 5000;
 
-// NOTE: brief's expected deltas [10,10,15,20,...,30] (score 185) imply x2 from the 4th
-// consecutive answer, not the 5th as global-constraints.md says. Brief values win.
 function multiplier(combo: number): number {
-  return combo >= 10 ? 3 : combo >= 4 ? 2 : combo >= 3 ? 1.5 : 1;
+  return combo >= 10 ? 3 : combo >= 5 ? 2 : combo >= 3 ? 1.5 : 1;
 }
 
 export class LevelSession {

@@ -42,8 +42,8 @@ describe('LevelSession', () => {
     const { s } = make();
     const results = [];
     for (let i = 0; i < 10; i++) results.push(s.click(correctId(s), i * 1000));
-    expect(results.map(r => r.scoreDelta)).toEqual([10, 10, 15, 20, 20, 20, 20, 20, 20, 30]);
-    expect(s.score).toBe(185);
+    expect(results.map(r => r.scoreDelta)).toEqual([10, 10, 15, 15, 20, 20, 20, 20, 20, 30]);
+    expect(s.score).toBe(180);
     expect(results[4].awardedItem).toBe('freeze');
     expect(results[9].awardedItem).toBe('magnifier');
     expect(results.filter(r => r.awardedItem)).toHaveLength(2);
