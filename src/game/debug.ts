@@ -2,6 +2,7 @@ import type Phaser from 'phaser';
 import type { LevelId } from '../core/types';
 import type { ProgressData, Settings } from '../core/progress';
 import type { ProgressStore } from '../core/store';
+import { pressButton } from '../ui/Button';
 
 export interface DebugState {
   scene: string;
@@ -67,12 +68,14 @@ export function installDebug(game: Phaser.Game): void {
       game.registry.set('progress', next);
       void (game.registry.get('store') as ProgressStore).save(next);
     },
-    press: () => {
-      /* filled in by Task 11's Button registry */
+    press: (label: string) => {
+      const s = active();
+      if (s) pressButton(s, label);
     },
     state: () => {
       const s = active();
-      return { scene: s?.scene.key ?? 'none', ...(s?.debugState?.() ?? {}) };
+      const settings = (game.registry.get('progress') as ProgressData | undefined)?.settings;
+      return { scene: s?.scene.key ?? 'none', settings, ...(s?.debugState?.() ?? {}) };
     },
   };
 }

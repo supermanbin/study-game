@@ -377,9 +377,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.leaving = true;
     this.matter.world.pause();
     await (this.registry.get('store') as ProgressStore).save(this.progress);
-    // LevelSelect arrives in Task 11; until then restart the level.
-    if (this.game.scene.getScene('LevelSelect')) this.scene.start('LevelSelect');
-    else this.scene.restart({ levelId: this.levelId });
+    this.scene.start('LevelSelect');
   }
 
   private checkEnd(): void {

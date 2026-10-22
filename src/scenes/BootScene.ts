@@ -41,7 +41,6 @@ export class BootScene extends Phaser.Scene {
     registry.set('store', store);
     registry.set('progress', await store.load());
     installDebug(this.game);
-    // Task 11 routes to the menu instead.
-    this.scene.start('Game', { levelId: 1 });
+    this.scene.start('Menu');
   }
 }

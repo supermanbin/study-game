@@ -3,6 +3,10 @@ import { GAME_WIDTH, GAME_HEIGHT } from './config';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { ResultScene } from './scenes/ResultScene';
+import { MenuScene } from './scenes/MenuScene';
+import { LevelSelectScene } from './scenes/LevelSelectScene';
+import { CardsScene } from './scenes/CardsScene';
+import { SettingsScene } from './scenes/SettingsScene';
 
 new Phaser.Game({
   type: Phaser.AUTO,
@@ -17,5 +21,5 @@ new Phaser.Game({
     default: 'matter',
     matter: { gravity: { x: 0, y: 1 } },
   },
-  scene: [BootScene, GameScene, ResultScene],
+  scene: [BootScene, MenuScene, LevelSelectScene, GameScene, ResultScene, CardsScene, SettingsScene],
 });
