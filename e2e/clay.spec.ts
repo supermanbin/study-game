@@ -61,7 +61,7 @@ test('Boot pre-bakes clay textures', async ({ page }) => {
 
 // ---- Task 3: game world ----
 
-type Ball = { radius: number; shellW: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number };
+type Ball = { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number };
 type Dbg = {
   startLevel(id: number): void;
   answerCorrect(): void;
@@ -119,9 +119,11 @@ test('ball shell: body radius 42/52, shell = 2r + shadow padding, centred on the
   for (const b of list) {
     expect([42, 52]).toContain(b.radius);
     const [lo, hi] = PADS[b.radius];
-    expect(Math.abs(b.shellW - (2 * b.radius + lo + hi))).toBeLessThan(1);
+    // shellW is the displayed width: undo the pop-in / squash visual scale.
+    const w = b.shellW / b.lookScaleX;
+    expect(Math.abs(w - (2 * b.radius + lo + hi))).toBeLessThan(1);
     // The visible body centre (lo + r into the texture) sits on the origin, which follows the physics centre.
-    expect(Math.abs(b.shellOriginX * b.shellW - (lo + b.radius))).toBeLessThan(1);
+    expect(Math.abs(b.shellOriginX * w - (lo + b.radius))).toBeLessThan(1);
     expect(Math.abs(b.shellX - b.x)).toBeLessThan(0.5);
     expect(Math.abs(b.shellY - b.y)).toBeLessThan(0.5);
   }

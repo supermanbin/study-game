@@ -11,14 +11,19 @@ export function clayBackground(scene: Phaser.Scene): Phaser.GameObjects.Image {
   return scene.add.image(0, 0, bakeBackground(scene)).setOrigin(0, 0).setDepth(-100);
 }
 
-/** Large rounded panel (corner radius min(28, h/3)). Origin = centre. */
+/** Corner radius of a clay panel of height h (shared with pre-baking, so the cache keys match). */
+export const panelRadius = (h: number): number => Math.min(28, h / 3);
+/** Corner radius of a clay plaque of height h. */
+export const plaqueRadius = (h: number): number => h / 2.6;
+
+/** Large rounded panel (corner radius `panelRadius`). Origin = centre. */
 export function clayPanel(scene: Phaser.Scene, x: number, y: number, w: number, h: number, color: number = CLAY.panel): Phaser.GameObjects.Image {
-  return clayImage(scene, x, y, bakeRoundRect(scene, w, h, Math.min(28, h / 3), color));
+  return clayImage(scene, x, y, bakeRoundRect(scene, w, h, panelRadius(h), color));
 }
 
-/** Small plaque / chip (corner radius h/2.6). Origin = centre. */
+/** Small plaque / chip (corner radius `plaqueRadius`). Origin = centre. */
 export function clayPlaque(scene: Phaser.Scene, x: number, y: number, w: number, h: number, color: number = CLAY.plaque): Phaser.GameObjects.Image {
-  return clayImage(scene, x, y, bakeRoundRect(scene, w, h, h / 2.6, color));
+  return clayImage(scene, x, y, bakeRoundRect(scene, w, h, plaqueRadius(h), color));
 }
 
 /** "Clay text": accent fill, thick light stroke, small warm drop shadow (+N, combo). */

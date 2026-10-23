@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH } from '../config';
 import type { ItemKind } from '../core/session';
 import { bakeRoundRect, bakeShape, clayImage, css } from '../ui/clay';
-import { clayPanel, clayPlaque } from '../ui/claywidgets';
+import { clayPanel, clayPlaque, panelRadius, plaqueRadius } from '../ui/claywidgets';
 import { CLAY } from '../ui/palette';
 import { GROUND_Y, WARNING_LINE_Y } from './tuning';
 
@@ -23,13 +23,15 @@ const PAUSE = { w: 760, h: 160 };
 const FLOOR_H = GAME_HEIGHT - GROUND_Y + 20;
 const DOT_STEP = 36;
 
+/** Floor texture: one key for both the pre-bake and the HUD. */
+const bakeFloor = (scene: Phaser.Scene) => bakeRoundRect(scene, GAME_WIDTH, FLOOR_H, 20, CLAY.floor);
+
 /** Bakes every HUD texture (call from Boot, so entering the game scene bakes nothing). */
 export function prebakeHud(scene: Phaser.Scene): void {
-  bakeRoundRect(scene, BAND.w, BAND.h, Math.min(28, BAND.h / 3), CLAY.panel);
-  for (const b of [SCORE, COMBO, TIME, REVEAL]) bakeRoundRect(scene, b.w, b.h, b.h / 2.6, CLAY.plaque);
-  bakeRoundRect(scene, ITEM.w, ITEM.h, ITEM.h / 2.6, ITEM.color);
-  bakeRoundRect(scene, PAUSE.w, PAUSE.h, Math.min(28, PAUSE.h / 3), CLAY.panel);
-  bakeRoundRect(scene, GAME_WIDTH, FLOOR_H, 20, CLAY.floor);
+  for (const b of [BAND, PAUSE]) bakeRoundRect(scene, b.w, b.h, panelRadius(b.h), CLAY.panel);
+  for (const b of [SCORE, COMBO, TIME, REVEAL]) bakeRoundRect(scene, b.w, b.h, plaqueRadius(b.h), CLAY.plaque);
+  bakeRoundRect(scene, ITEM.w, ITEM.h, plaqueRadius(ITEM.h), ITEM.color);
+  bakeFloor(scene);
 }
 
 /** Prompt, score/combo, countdown, item buttons, warning line, floor, pause overlay, miss reveal. */
@@ -57,7 +59,7 @@ export class Hud {
     // The question band sits above the options so newly spawned ones emerge from under it.
     clayPanel(scene, BAND.x, BAND.y, BAND.w, BAND.h).setDepth(BAND_DEPTH);
     // Floor: top edge at GROUND_Y (the rounded bottom corners are off-screen).
-    clayImage(scene, GAME_WIDTH / 2, GROUND_Y + FLOOR_H / 2, bakeRoundRect(scene, GAME_WIDTH, FLOOR_H, 20, CLAY.floor)).setDepth(GROUND_DEPTH);
+    clayImage(scene, GAME_WIDTH / 2, GROUND_Y + FLOOR_H / 2, bakeFloor(scene)).setDepth(GROUND_DEPTH);
     // Warning line: a row of inset clay dots.
     const dot = bakeShape(scene, 'dot');
     for (let x = DOT_STEP / 2; x < GAME_WIDTH; x += DOT_STEP) clayImage(scene, x, WARNING_LINE_Y, dot).setDepth(GROUND_DEPTH);

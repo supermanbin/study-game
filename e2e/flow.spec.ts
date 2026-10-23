@@ -52,6 +52,7 @@ test('menu to level select to result to persistence', async ({ page }) => {
 
   await ready(page);
   await press(page, '开始游戏');
+  await expect.poll(async () => (await state(page)).scene).toBe('LevelSelect');
   await press(page, '第2关');
   await expect.poll(async () => (await state(page)).scene).toBe('Game');
 

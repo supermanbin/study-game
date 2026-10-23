@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
-import { FONT_FAMILY, GAME_HEIGHT, GAME_WIDTH } from '../config';
+import { GAME_HEIGHT, GAME_WIDTH, RENDER_SCALE } from '../config';
 import { Throttle } from '../audio/pickLine';
+import { bakeShape, type ClayTex } from '../ui/clay';
+import { CLAY_TEXT } from '../ui/claywidgets';
+import { BALL_COLORS } from '../ui/palette';
 import type { OptionBody } from './OptionBody';
 import { QUESTION_AREA_BOTTOM } from './tuning';
 
@@ -13,47 +16,28 @@ const RING_DEPTH = 20;
 const FLOAT_DEPTH = 25;
 /** Centre combo popup: topmost effect, still under the question band (50). */
 const COMBO_DEPTH = 40;
-const STAR_KEY = 'fx-star';
-const CONFETTI_KEY = 'fx-confetti';
-const PUFF_KEY = 'fx-puff';
-const COLORS = [0xff8a65, 0x4fc3f7, 0x81c784, 0xffd54f, 0xba68c8, 0xf06292];
+const SPARK_COLOR = BALL_COLORS[3];
+/** Colours per burst (one emitter per colour and particle kind). */
+const BURST_COLORS = 3;
+/** Clay textures are baked at RENDER_SCALE; this shows them at design size. */
+const TEX = 1 / RENDER_SCALE;
 
 const sparkThrottle = new Throttle(80);
 
-/** Generates the particle textures; GameScene calls it at create so no texture is made during play. */
-export function ensureTextures(scene: Phaser.Scene): void {
-  if (scene.textures.exists(STAR_KEY)) return;
-  const g = scene.make.graphics({}, false);
-  g.fillStyle(0xffffff, 1);
-  const pts: Phaser.Math.Vector2[] = [];
-  for (let i = 0; i < 10; i++) {
-    const r = i % 2 === 0 ? 10 : 4.5;
-    const a = -Math.PI / 2 + (i * Math.PI) / 5;
-    pts.push(new Phaser.Math.Vector2(10 + Math.cos(a) * r, 10 + Math.sin(a) * r));
-  }
-  g.fillPoints(pts, true);
-  g.generateTexture(STAR_KEY, 20, 20);
-  g.clear().fillStyle(0xffffff, 1).fillRect(0, 0, 10, 6);
-  g.generateTexture(CONFETTI_KEY, 10, 6);
-  g.clear().fillStyle(0xffffff, 1).fillCircle(4, 4, 4);
-  g.generateTexture(PUFF_KEY, 8, 8);
-  g.destroy();
-}
-
+/** One short particle burst from a pre-baked clay texture (bakeAll in Boot), so nothing is generated during play. */
 function burst(
   scene: Phaser.Scene,
   x: number,
   y: number,
-  key: string,
+  tex: ClayTex,
   count: number,
   lifespan: number,
   cfg: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig,
 ): void {
-  ensureTextures(scene);
-  const em = scene.add.particles(Math.max(0, x), Math.max(QUESTION_AREA_BOTTOM, y), key, {
+  const em = scene.add.particles(Math.max(0, x), Math.max(QUESTION_AREA_BOTTOM, y), tex.key, {
     lifespan,
     angle: { min: 0, max: 360 },
-    scale: { start: 1, end: 0 },
+    scale: { start: TEX, end: 0 },
     emitting: false,
     ...cfg,
   });
@@ -62,23 +46,15 @@ function burst(
   scene.time.delayedCall(lifespan + 60, () => em.destroy());
 }
 
-/** Stars + confetti burst, ~900 ms, 36 particles (half when `small`). */
+/** Clay stars + clay dots in 3 random ball colours, ~900 ms, 36 particles (half when `small`). */
 export function explode(scene: Phaser.Scene, x: number, y: number, small = false): void {
-  const n = small ? 0.5 : 1;
-  burst(scene, x, y, STAR_KEY, Math.round(18 * n), 900, {
-    speed: { min: 250, max: 650 },
-    gravityY: 600,
-    scale: { start: 1.6, end: 0 },
-    rotate: { start: 0, end: 360 },
-    tint: COLORS,
-  });
-  burst(scene, x, y, CONFETTI_KEY, Math.round(18 * n), 900, {
-    speed: { min: 250, max: 650 },
-    gravityY: 600,
-    scale: { start: 1.4, end: 0 },
-    rotate: { start: 0, end: 720 },
-    tint: COLORS,
-  });
+  const colors = Phaser.Utils.Array.Shuffle([...BALL_COLORS]).slice(0, BURST_COLORS);
+  const per = Math.round((18 * (small ? 0.5 : 1)) / BURST_COLORS);
+  const fly = { speed: { min: 250, max: 650 }, gravityY: 600 };
+  for (const c of colors) {
+    burst(scene, x, y, bakeShape(scene, 'particleStar', c), per, 900, { ...fly, scale: { start: 1.6 * TEX, end: 0 }, rotate: { start: 0, end: 360 } });
+    burst(scene, x, y, bakeShape(scene, 'particleBall', c), per, 900, { ...fly, scale: { start: TEX, end: 0 } });
+  }
 }
 
 /** White ring scaling 1 -> 4 while fading, 450 ms. */
@@ -96,12 +72,8 @@ export function floatScore(scene: Phaser.Scene, x: number, y: number, delta: num
   const y0 = Math.max(QUESTION_AREA_BOTTOM + 130, y - 20);
   const t = scene.add
     .text(Phaser.Math.Clamp(x, 60, GAME_WIDTH - 60), y0, `+${delta}`, {
-      fontFamily: FONT_FAMILY,
+      ...CLAY_TEXT,
       fontSize: '44px',
-      fontStyle: 'bold',
-      color: '#ffd43b',
-      stroke: '#7a4b00',
-      strokeThickness: 6,
     })
     .setOrigin(0.5)
     .setDepth(FLOAT_DEPTH);
@@ -112,12 +84,8 @@ export function floatScore(scene: Phaser.Scene, x: number, y: number, delta: num
 export function centerCombo(scene: Phaser.Scene, combo: number): void {
   const t = scene.add
     .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, `${combo} 连击！`, {
-      fontFamily: FONT_FAMILY,
+      ...CLAY_TEXT,
       fontSize: '96px',
-      fontStyle: 'bold',
-      color: '#ff6b6b',
-      stroke: '#ffffff',
-      strokeThickness: 10,
     })
     .setOrigin(0.5)
     .setDepth(COMBO_DEPTH)
@@ -172,18 +140,11 @@ export function screenShake(scene: Phaser.Scene): void {
   scene.cameras.main.shake(250, 0.006);
 }
 
-/** Brief white flash over the target's bounds (150 ms). */
-export function flashWhite(scene: Phaser.Scene, target: { getBounds(): Phaser.Geom.Rectangle }, depth = 110): void {
-  const b = target.getBounds();
-  const r = scene.add.rectangle(b.centerX, b.centerY, b.width, b.height, 0xffffff, 0.85).setDepth(depth);
-  scene.tweens.add({ targets: r, alpha: 0, duration: 150, onComplete: () => r.destroy() });
-}
-
-/** Tiny collision spark, throttled to one per 80 ms. */
+/** Tiny collision spark (small lemon clay dots), throttled to one per 80 ms. */
 export function spark(scene: Phaser.Scene, x: number, y: number): void {
   if (!sparkThrottle.allow(scene.time.now)) return;
-  burst(scene, x, y, PUFF_KEY, 5, 250, {
+  burst(scene, x, y, bakeShape(scene, 'particleBall', SPARK_COLOR), 5, 250, {
     speed: { min: 40, max: 120 },
-    tint: 0xfff59d,
+    scale: { start: 0.6 * TEX, end: 0 },
   });
 }

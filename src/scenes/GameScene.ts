@@ -13,9 +13,7 @@ import { Hud } from '../game/Hud';
 import { Boss } from '../game/Boss';
 import {
   centerCombo,
-  ensureTextures,
   explode,
-  flashWhite,
   floatScore,
   greyShake,
   screenShake,
@@ -121,8 +119,6 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.gameMs = 0;
     // Light cream, so the clay balls pop.
     clayBackground(this);
-    // Particle textures up front: nothing is generated during play (Review Focus 5).
-    ensureTextures(this);
     this.time.paused = false; // the scene clock survives restarts
     this.tuning = loadTuning(safeLocalStorage());
     this.session = new LevelSession(getLevel(this.levelId), {
@@ -455,7 +451,6 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
           if (this.boss.mode === 'monster') {
             audio?.sfx('bossHit');
             this.boss.hit();
-            flashWhite(this, this.boss.target, 120);
             screenShake(this);
             if (hp === 0) {
               this.boss.defeat();

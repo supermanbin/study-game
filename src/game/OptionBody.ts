@@ -215,11 +215,12 @@ export class OptionBody {
       .setScale(sx * TEX_SCALE, sy * TEX_SCALE);
   }
 
-  /** Debug/e2e: body radius, shell geometry and the two layers' angles. */
-  debugInfo(): { radius: number; shellW: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number } {
+  /** Debug/e2e: body radius, shell geometry (displayed, so divide by `lookScaleX` during pop-in/squash) and the two layers' angles. */
+  debugInfo(): { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number } {
     return {
       radius: this.body?.circleRadius ?? this.radius,
       shellW: this.shell.displayWidth,
+      lookScaleX: this.look.scaleX,
       shellOriginX: this.shell.originX,
       shellX: this.shell.x,
       shellY: this.shell.y,
