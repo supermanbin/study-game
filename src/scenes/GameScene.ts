@@ -28,7 +28,9 @@ import { Pegs } from '../game/Pegs';
 import { loadTuning, type PhysicsTuning } from '../game/physicsTuning';
 import { PileOverflowTracker } from '../game/pile';
 import {
+  BOSS_DEFEAT_HOLD_MS,
   GROUND_Y,
+  LEVEL_END_HOLD_MS,
   LEVEL_GRAVITY_FACTOR,
   MAX_FRAME_DELTA_MS,
   MISS_REVEAL_MS,
@@ -72,6 +74,8 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   private voiceSeq = 0;
   /** After a miss the next question waits MISS_REVEAL_MS (scene clock, so pause stops it). */
   private pendingStart?: Phaser.Time.TimerEvent;
+  /** Level-end hold (scene clock): the final effects and voice play out before Result starts. */
+  private endHold?: Phaser.Time.TimerEvent;
   /** Physics tuning, re-read at every question start (changes apply from the next question). */
   private tuning!: PhysicsTuning;
   private pegs?: Pegs;
@@ -92,6 +96,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.boss = undefined;
     this.voiceSeq = 0;
     this.pendingStart = undefined;
+    this.endHold = undefined;
     this.pegs = undefined;
     this.contacts = [];
   }
@@ -484,7 +489,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
         // Item use: no itemGet voice or award sfx (those fire on award, in the 'correct' case).
         break;
       case 'end':
-        this.voice(e.result.stars === 3 ? 'threeStars' : e.result.passed ? 'levelPass' : 'levelFail');
+        // The pass / fail line is spoken by the Result celebration, after the final answer's line has finished.
         break;
     }
   }
@@ -517,11 +522,28 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.scene.start('LevelSelect');
   }
 
+  /**
+   * Once the session is won or lost, hold the scene (balls keep falling, effects and the last voice line
+   * finish) and only then start Result. Input is already off: click/miss/items/pause all check the status.
+   */
   private checkEnd(): void {
     const st = this.session.status;
-    if (this.leaving || (st !== 'won' && st !== 'lost')) return;
+    if (this.leaving || this.endHold || (st !== 'won' && st !== 'lost')) return;
+    const bossJustDefeated = !!this.boss && this.boss.mode === 'defeated';
+    this.endHold = this.time.delayedCall(bossJustDefeated ? BOSS_DEFEAT_HOLD_MS : LEVEL_END_HOLD_MS, () => this.leaveToResult());
+  }
+
+  private leaveToResult(): void {
+    if (this.leaving) return;
     this.leaving = true;
     void this.endLevel();
+  }
+
+  /** Debug only: skip the level-end hold so e2e reaches Result right away. */
+  private flushEndHold(): void {
+    if (!this.endHold || this.leaving) return;
+    this.endHold.remove();
+    this.leaveToResult();
   }
 
   private async endLevel(): Promise<void> {
@@ -550,6 +572,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       gameMs: this.gameMs,
       pileCount: this.pileOptions().length,
       nextQuestionPending: !!this.pendingStart,
+      levelEnding: !!this.endHold && !this.leaving,
       balls: this.options.filter(o => o.body).map(o => o.debugInfo()),
       // bossHp / bossMode exist only on boss levels (3 and 6).
       ...(s.level.boss ? { bossHp: s.bossHp(), bossMode: this.boss?.mode } : {}),
@@ -560,6 +583,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.flushPendingStart();
     const opt = this.currentOptions().find(o => o.clickable && o.correct === correct);
     if (opt) this.onOptionPointer(opt);
+    this.flushEndHold();
   }
 
   debugDoubleClickCorrect(): void {
@@ -568,6 +592,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     if (!opt) return;
     this.onOptionPointer(opt);
     this.onOptionPointer(opt);
+    this.flushEndHold();
   }
 
   /** Fires the pointer path on a resolved option of the current serial (must be ignored). */
@@ -579,5 +604,6 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   debugMiss(): void {
     this.flushPendingStart();
     this.handleMiss();
+    this.flushEndHold();
   }
 }
