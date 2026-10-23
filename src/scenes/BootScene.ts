@@ -5,7 +5,9 @@ import { AudioService } from '../audio/AudioService';
 import { defaultProgress, type ProgressData } from '../core/progress';
 import { mulberry32 } from '../core/rng';
 import { LocalStorageProgressStore, safeLocalStorage } from '../core/store';
+import { bakeAll } from '../ui/clay';
 import { applyHiDpi } from '../ui/hiDpi';
+import { BG, INK } from '../ui/theme';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -20,6 +22,8 @@ export class BootScene extends Phaser.Scene {
 
   async create(): Promise<void> {
     applyHiDpi(this);
+    const bakeMs = bakeAll(this);
+    if (import.meta.env.DEV) console.info(`clay bake: ${bakeMs.toFixed(0)} ms`);
     const registry = this.game.registry;
     registry.set(
       'audio',
@@ -29,12 +33,12 @@ export class BootScene extends Phaser.Scene {
         mulberry32(Date.now()),
       ),
     );
-    this.cameras.main.setBackgroundColor('#fdf6e3');
+    this.cameras.main.setBackgroundColor(BG);
     this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, '九九乘法闯关', {
         fontFamily: FONT_FAMILY,
         fontSize: '72px',
-        color: '#333333',
+        color: INK,
       })
       .setOrigin(0.5);
 

@@ -1,8 +1,9 @@
 import Phaser from 'phaser';
-import { FONT_FAMILY } from '../config';
 import { LEVELS } from '../core/levels';
 import { createButton } from '../ui/Button';
-import { BG, getProgress, title } from '../ui/theme';
+import { clayBackground, clayLock, clayStars } from '../ui/claywidgets';
+import { BALL_COLORS, CLAY } from '../ui/palette';
+import { getProgress, title } from '../ui/theme';
 import { applyHiDpi } from '../ui/hiDpi';
 
 export class LevelSelectScene extends Phaser.Scene {
@@ -12,7 +13,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
   create(): void {
     applyHiDpi(this);
-    this.cameras.main.setBackgroundColor(BG);
+    clayBackground(this);
     const p = getProgress(this);
     title(this, '选择关卡', 60);
     LEVELS.forEach((lv, i) => {
@@ -25,18 +26,12 @@ export class LevelSelectScene extends Phaser.Scene {
         height: 150,
         fontSize: 40,
         disabled: locked,
-        color: lv.boss ? 0xe53935 : 0x43a047,
+        color: lv.boss ? BALL_COLORS[4] : i % 2 === 0 ? CLAY.primary : BALL_COLORS[1],
         subtitle: lv.name,
       });
-      this.add
-        .text(x, y + 48, '★'.repeat(stars) + '☆'.repeat(3 - stars), {
-          fontFamily: FONT_FAMILY,
-          fontSize: '30px',
-          color: locked ? '#9e9e9e' : '#ffeb3b',
-        })
-        .setOrigin(0.5);
-      if (locked) this.add.text(x + 130, y - 55, '🔒', { fontFamily: FONT_FAMILY, fontSize: '40px' }).setOrigin(0.5);
+      clayStars(this, x, y + 46, stars, 30);
+      if (locked) clayLock(this, x + 130, y - 42, 38);
     });
-    createButton(this, 640, 620, '返回', () => this.scene.start('Menu'), { width: 220, color: 0x757575 });
+    createButton(this, 640, 620, '返回', () => this.scene.start('Menu'), { width: 220, color: BALL_COLORS[5] });
   }
 }

@@ -2,10 +2,12 @@ import Phaser from 'phaser';
 import { FONT_FAMILY, GAME_WIDTH } from '../config';
 import type { ProgressData } from '../core/progress';
 import type { ProgressStore } from '../core/store';
+import { css } from './clay';
+import { CLAY } from './palette';
 import type { AudioService } from '../audio/AudioService';
 
-export const BG = '#fdf6e3';
-export const INK = '#3e2723';
+export const BG = css(CLAY.bgOuter);
+export const INK = css(CLAY.ink);
 
 export function title(scene: Phaser.Scene, text: string, y = 70, size = 56): Phaser.GameObjects.Text {
   return scene.add

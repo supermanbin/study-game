@@ -1,5 +1,6 @@
 import type Phaser from 'phaser';
 import { RENDER_SCALE } from '../config';
+import { EXPR_RADIUS, NUMBER_RADIUS } from '../game/tuning';
 import { BALL_COLORS, CLAY } from './palette';
 
 // Soft-clay painter (spec docs/superpowers/specs/2026-10-23-clay-visual-design.md §4). The pure helpers at the top
@@ -120,16 +121,22 @@ function newCanvas(w: number, h: number): { canvas: HTMLCanvasElement; ctx: Canv
   return { canvas, ctx };
 }
 
+/** Frees a scratch canvas's backing store right away (large panels would otherwise pile up until GC). */
+function release(canvas: HTMLCanvasElement): void {
+  canvas.width = canvas.height = 0;
+}
+
 let filterOk: boolean | undefined;
 /** `ctx.filter` blur is the fast, exact path; Safari < 18 lacks it, so fall back to an offscreen shadow. */
 function filterSupported(): boolean {
   if (filterOk === undefined) {
-    const { ctx } = newCanvas(1, 1);
+    const { canvas, ctx } = newCanvas(1, 1);
     filterOk = typeof ctx.filter === 'string';
     if (filterOk) {
       ctx.filter = 'blur(2px)';
       filterOk = ctx.filter === 'blur(2px)';
     }
+    release(canvas);
   }
   return filterOk;
 }
@@ -156,6 +163,12 @@ function drawBlurred(ctx: CanvasRenderingContext2D, img: HTMLCanvasElement, x: n
     ctx.drawImage(img, x - off, y);
   }
   ctx.restore();
+}
+
+/** `drawBlurred` of a temporary layer, released afterwards. */
+function drawBlurredTemp(ctx: CanvasRenderingContext2D, img: HTMLCanvasElement, x: number, y: number, sigma: number, color: number, alpha: number): void {
+  drawBlurred(ctx, img, x, y, sigma, color, alpha);
+  release(img);
 }
 
 /** A layer of `color`: the silhouette (inverted = everything but the silhouette, `margin` px larger on each side). */
@@ -203,21 +216,23 @@ function paintClay(target: CanvasRenderingContext2D, shape: Draw, color: number,
   if (!opts.inset) {
     const k = (opts.drop ?? 1) * (opts.faded ? 0.8 : 1);
     if (k > 0) {
-      drawBlurred(target, tint(sil.canvas, t.drop, false), p.dropX * k * S, p.dropY * k * S, (p.dropBlur / 2) * k * S, t.drop, opts.faded ? 0.25 : t.dropAlpha);
+      drawBlurredTemp(target, tint(sil.canvas, t.drop, false), p.dropX * k * S, p.dropY * k * S, (p.dropBlur / 2) * k * S, t.drop, opts.faded ? 0.25 : t.dropAlpha);
     }
   } else {
     // Mockup warning dot: `0 1px 0 #fff` — a pressed-in hole catches light on its lower lip.
-    drawBlurred(target, tint(sil.canvas, 0xffffff, false), 0, Math.max(1, 0.08 * size) * S, 0.5 * S, 0xffffff, 0.8);
+    drawBlurredTemp(target, tint(sil.canvas, 0xffffff, false), 0, Math.max(1, 0.08 * size) * S, 0.5 * S, 0xffffff, 0.8);
   }
 
   const body = newCanvas(W, H);
-  body.ctx.drawImage(tint(sil.canvas, color, false), 0, 0);
+  const fill = tint(sil.canvas, color, false);
+  body.ctx.drawImage(fill, 0, 0);
+  release(fill);
   body.ctx.globalCompositeOperation = 'source-atop';
   const margin = Math.ceil((p.dark + p.dropBlur) * 2 * S) + 4;
   const layer = (c: number, alpha: number, depth: number, dir: 1 | -1) => {
     // The inverted silhouette shifted by `dir·depth` leaves a crescent of colour inside the opposite edge.
     const d = dir * depth * S;
-    drawBlurred(body.ctx, tint(sil.canvas, c, true, margin), d - margin, d - margin, depth * 0.8 * S, c, alpha);
+    drawBlurredTemp(body.ctx, tint(sil.canvas, c, true, margin), d - margin, d - margin, depth * 0.8 * S, c, alpha);
   };
   if (opts.inset) {
     layer(t.dark, Math.min(0.6, t.darkAlpha + 0.12), p.dark, 1);
@@ -230,6 +245,8 @@ function paintClay(target: CanvasRenderingContext2D, shape: Draw, color: number,
   target.setTransform(1, 0, 0, 1, 0, 0);
   target.drawImage(body.canvas, 0, 0);
   target.restore();
+  release(body.canvas);
+  release(sil.canvas);
 }
 
 /** Padding (design px) around a raised shape of `size` for its drop shadow: [low (top/left), high (bottom/right)]. */
@@ -322,11 +339,27 @@ export function bakeStripe(scene: Phaser.Scene, radius: number): ClayTex {
 }
 
 /** Raised (or `inset`) clay rounded rectangle, w×h design px, corner radius r. Origin = rect centre. */
-export function bakeRoundRect(scene: Phaser.Scene, w: number, h: number, r: number, color: number, inset = false): ClayTex {
+export function bakeRoundRect(scene: Phaser.Scene, w: number, h: number, r: number, color: number, inset = false, pressed = false): ClayTex {
   const size = Math.min(w, h);
-  return bake(scene, clayKey(inset ? 'rrInset' : 'rr', color, w, h, r, S), w, h, size, inset, (ctx, ox, oy) => {
-    paintClay(ctx, c => { roundRectPath(c, ox, oy, w, h, r); c.fill(); }, color, size, { inset, faded: color === CLAY.faded });
+  const kind = inset ? 'rrInset' : pressed ? 'rrPressed' : 'rr';
+  // Pressed keeps the raised texture's padding (same origin), only its drop shadow shrinks.
+  return bake(scene, clayKey(kind, color, w, h, r, S), w, h, size, inset, (ctx, ox, oy) => {
+    paintClay(ctx, c => { roundRectPath(c, ox, oy, w, h, r); c.fill(); }, color, size, { inset, faded: color === CLAY.faded, drop: pressed ? 0.35 : 1 });
   });
+}
+
+/** Full-screen cream radial (design 1280×720, displayed 1:1: a smooth gradient needs no extra resolution). */
+export function bakeBackground(scene: Phaser.Scene): string {
+  const key = clayKey('bg', 1280, 720);
+  if (scene.textures.exists(key)) return key;
+  const { canvas, ctx } = newCanvas(1280, 720);
+  const g = ctx.createRadialGradient(640, 330, 40, 640, 360, 800);
+  g.addColorStop(0, css(CLAY.bgInner));
+  g.addColorStop(1, css(CLAY.bgOuter));
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 1280, 720);
+  scene.textures.addCanvas(key, canvas);
+  return key;
 }
 
 export type ClayShape =
@@ -420,12 +453,13 @@ function monsterFace(ctx: CanvasRenderingContext2D, cx: number, cy: number, hurt
 }
 
 /** Fixed clay shapes (stars, lock, boss, chest, pegs, warning dots, HP segments, particles). Origin = box centre. */
-export function bakeShape(scene: Phaser.Scene, kind: ClayShape, color?: number): ClayTex {
+export function bakeShape(scene: Phaser.Scene, kind: ClayShape, color?: number, starSize?: number): ClayTex {
   const col = color ?? DEFAULT_SHAPE_COLOR[kind];
-  const { w, h } = SHAPE_SIZE[kind];
+  const custom = starSize !== undefined && (kind === 'star' || kind === 'starOff');
+  const { w, h } = custom ? { w: starSize, h: starSize } : SHAPE_SIZE[kind];
   const size = Math.min(w, h);
   const inset = kind === 'starOff' || kind === 'dot' || kind === 'hpOff';
-  return bake(scene, clayKey(kind, col, S), w, h, size, inset, (ctx, ox, oy) => {
+  return bake(scene, custom ? clayKey(kind, col, starSize, S) : clayKey(kind, col, S), w, h, size, inset, (ctx, ox, oy) => {
     const cx = ox + w / 2;
     const cy = oy + h / 2;
     switch (kind) {
@@ -514,11 +548,12 @@ export function clayImage(scene: Phaser.Scene, x: number, y: number, tex: ClayTe
 }
 
 /** Ball radii in use: number balls and expression balls (= collision radii). */
-const BALL_RADII = [42, 52];
+const BALL_RADII = [NUMBER_RADIUS, EXPR_RADIUS];
 
 /** Pre-bakes every fixed-size clay texture (call from Boot). Returns the elapsed ms. */
 export function bakeAll(scene: Phaser.Scene): number {
   const t0 = performance.now();
+  bakeBackground(scene);
   for (const r of BALL_RADII) {
     for (const c of BALL_COLORS) bakeBall(scene, c, r);
     bakeBall(scene, CLAY.faded, r, true);

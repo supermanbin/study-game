@@ -4,7 +4,10 @@ import { ALL_FACTS, factKey, koujue } from '../core/facts';
 import { isCardLit } from '../core/progress';
 import { createButton } from '../ui/Button';
 import type { DebuggableScene, DebugState } from '../game/debug';
-import { BG, getProgress, title } from '../ui/theme';
+import { clayBackground } from '../ui/claywidgets';
+import { bakeRoundRect, clayImage, css, labelStyleFor } from '../ui/clay';
+import { BALL_COLORS, CLAY } from '../ui/palette';
+import { getProgress, title } from '../ui/theme';
 import { applyHiDpi } from '../ui/hiDpi';
 
 export class CardsScene extends Phaser.Scene implements DebuggableScene {
@@ -16,7 +19,7 @@ export class CardsScene extends Phaser.Scene implements DebuggableScene {
 
   create(): void {
     applyHiDpi(this);
-    this.cameras.main.setBackgroundColor(BG);
+    clayBackground(this);
     const p = getProgress(this);
     this.lit = ALL_FACTS.filter(f => isCardLit(p, factKey(f.a, f.b))).length;
     title(this, `口诀卡册    已点亮 ${this.lit} / 45`, 40, 40);
@@ -29,14 +32,12 @@ export class CardsScene extends Phaser.Scene implements DebuggableScene {
       const lit = isCardLit(p, factKey(f.a, f.b));
       const x = x0 + (f.b - 1) * cw;
       const y = y0 + (f.a - 1) * (ch + 4);
-      const g = this.add.graphics();
-      g.fillStyle(lit ? 0xffc107 : 0xe0e0e0, 1).fillRoundedRect(x - cw / 2 + 3, y - ch / 2, cw - 6, ch, 10);
-      if (lit) g.lineStyle(3, 0xff8f00, 1).strokeRoundedRect(x - cw / 2 + 3, y - ch / 2, cw - 6, ch, 10);
-      this.add
-        .text(x, y, koujue(f), { fontFamily: FONT_FAMILY, fontSize: '20px', color: lit ? '#3e2723' : '#9e9e9e', fontStyle: lit ? 'bold' : 'normal' })
-        .setOrigin(0.5);
+      const color = BALL_COLORS[(f.a + f.b) % BALL_COLORS.length];
+      clayImage(this, x, y, lit ? bakeRoundRect(this, 112, ch, 16, color) : bakeRoundRect(this, 112, ch, 16, CLAY.faded, true));
+      const style = lit ? { ...labelStyleFor(color), strokeThickness: 3 } : { color: css(CLAY.fadedText) };
+      this.add.text(x, y, koujue(f), { fontFamily: FONT_FAMILY, fontSize: '20px', fontStyle: 'bold', ...style }).setOrigin(0.5);
     }
-    createButton(this, 1130, 665, '返回', () => this.scene.start('Menu'), { width: 200, color: 0x757575 });
+    createButton(this, 1130, 665, '返回', () => this.scene.start('Menu'), { width: 200, color: BALL_COLORS[5] });
   }
 
   debugState(): Partial<DebugState> {
