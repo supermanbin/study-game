@@ -13,6 +13,7 @@ import { Hud } from '../game/Hud';
 import { Boss } from '../game/Boss';
 import {
   centerCombo,
+  ensureTextures,
   explode,
   flashWhite,
   floatScore,
@@ -41,6 +42,7 @@ import {
   WARNING_LINE_Y,
 } from '../game/tuning';
 import { applyHiDpi } from '../ui/hiDpi';
+import { clayBackground } from '../ui/claywidgets';
 
 /** After a correct answer: the other balls fade at this point, the next question starts after the second. */
 const RESOLVED_VANISH_MS = 700;
@@ -117,7 +119,10 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     applyHiDpi(this);
     this.noTime = location.search.includes('debug') && location.search.includes('notime');
     this.gameMs = 0;
-    this.cameras.main.setBackgroundColor('#e3f2fd');
+    // Light cream, so the clay balls pop.
+    clayBackground(this);
+    // Particle textures up front: nothing is generated during play (Review Focus 5).
+    ensureTextures(this);
     this.time.paused = false; // the scene clock survives restarts
     this.tuning = loadTuning(safeLocalStorage());
     this.session = new LevelSession(getLevel(this.levelId), {
@@ -154,7 +159,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       0,
       this.tuning.gravity * LEVEL_GRAVITY_FACTOR[this.levelId] * difficultyAt(s.questionIndex).fallSpeed,
     );
-    for (const o of this.options) o.syncLabel();
+    for (const o of this.options) o.syncVisuals();
     if (s.status === 'playing') {
       this.updateMotion(dt);
       this.checkMiss();
@@ -550,6 +555,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       gameMs: this.gameMs,
       pileCount: this.pileOptions().length,
       nextQuestionPending: !!this.pendingStart,
+      balls: this.options.filter(o => o.body).map(o => o.debugInfo()),
       // bossHp / bossMode exist only on boss levels (3 and 6).
       ...(s.level.boss ? { bossHp: s.bossHp(), bossMode: this.boss?.mode } : {}),
     };

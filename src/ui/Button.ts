@@ -73,14 +73,24 @@ export function createButton(
       body.setTexture(down ? pressed.key : raised.key);
       for (const [obj, y0] of parts) obj.setY(y0 + (down ? PRESS_SINK : 0));
     };
+    // Only a press that started on this button may click it: pressing A and releasing on B clicks neither.
+    let armed = false;
     // The hit area is the button rect only (the texture also carries shadow padding).
     c.setInteractive(new Phaser.Geom.Rectangle(0, 0, w, h), Phaser.Geom.Rectangle.Contains)
-      .on('pointerdown', () => setPressed(true))
-      .on('pointerup', () => {
-        setPressed(false);
-        onClick();
+      .on('pointerdown', () => {
+        armed = true;
+        setPressed(true);
       })
-      .on('pointerout', () => setPressed(false));
+      .on('pointerup', () => {
+        const fire = armed;
+        armed = false;
+        setPressed(false);
+        if (fire) onClick();
+      })
+      .on('pointerout', () => {
+        armed = false;
+        setPressed(false);
+      });
     c.input!.cursor = 'pointer';
   }
   return c;

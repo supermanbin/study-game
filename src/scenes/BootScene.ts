@@ -6,6 +6,7 @@ import { defaultProgress, type ProgressData } from '../core/progress';
 import { mulberry32 } from '../core/rng';
 import { LocalStorageProgressStore, safeLocalStorage } from '../core/store';
 import { bakeAll } from '../ui/clay';
+import { prebakeHud } from '../game/Hud';
 import { applyHiDpi } from '../ui/hiDpi';
 import { BG, INK } from '../ui/theme';
 
@@ -22,7 +23,10 @@ export class BootScene extends Phaser.Scene {
 
   async create(): Promise<void> {
     applyHiDpi(this);
-    const bakeMs = bakeAll(this);
+    const t0 = performance.now();
+    bakeAll(this);
+    prebakeHud(this);
+    const bakeMs = performance.now() - t0;
     if (import.meta.env.DEV) console.info(`clay bake: ${bakeMs.toFixed(0)} ms`);
     const registry = this.game.registry;
     registry.set(

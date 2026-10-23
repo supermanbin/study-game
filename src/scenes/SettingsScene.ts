@@ -26,8 +26,9 @@ export class SettingsScene extends Phaser.Scene {
     ROWS.forEach((row, i) => {
       const y = 230 + i * 120;
       const on = getProgress(this).settings[row.key];
-      createButton(this, 640, y, row.label, () => this.toggle(row.key), { width: 300, color: BALL_COLORS[1] });
-      clayToggle(this, 850, y - 8, on);
+      const toggle = () => this.toggle(row.key);
+      createButton(this, 640, y, row.label, toggle, { width: 300, color: BALL_COLORS[1] });
+      clayToggle(this, 850, y - 8, on, toggle);
       this.add
         .text(850, y + 34, on ? '开' : '关', { fontFamily: FONT_FAMILY, fontSize: '22px', color: css(CLAY.ink2), fontStyle: 'bold' })
         .setOrigin(0.5);

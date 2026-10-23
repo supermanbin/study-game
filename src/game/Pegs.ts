@@ -1,9 +1,14 @@
 import type Phaser from 'phaser';
-import { GAME_WIDTH } from '../config';
+import { GAME_WIDTH, RENDER_SCALE } from '../config';
+import { bakeShape, clayImage } from '../ui/clay';
 import { PEG_RADIUS, PEG_ROWS_Y, PEG_SPACING } from './tuning';
 
 const PEG_LABEL = 'peg';
 const PEG_DEPTH = 9;
+/** Clay images are baked at RENDER_SCALE and shown at 1/RENDER_SCALE. */
+const TEX_SCALE = 1 / RENDER_SCALE;
+const FLASH_SCALE = 1.6;
+const BRIGHTEN_MS = 60;
 
 /** Peg centres: staggered rows of 6 / 5 pegs, PEG_SPACING apart, centred across the width. */
 export function pegPositions(width = GAME_WIDTH): { x: number; y: number }[] {
@@ -35,10 +40,17 @@ export function clearOfPegsX(x: number, y: number, r: number, min: number, max: 
   return out;
 }
 
-/** Static bouncy pegs (pachinko style) between the question band and the pile. */
+/**
+ * Static bouncy pegs (pachinko style) between the question band and the pile: a clay peg image that is the Matter
+ * game object of a static circle of PEG_RADIUS.
+ *
+ * Matter's Transform mixin scales the body relative to the image scale the body was created at (1/RENDER_SCALE
+ * here), so the body is PEG_RADIUS × scale × RENDER_SCALE: exactly PEG_RADIUS at rest, and the flash pulse grows
+ * it like the former arc did (×1.6 at the peak).
+ */
 export class Pegs {
   private readonly scene: Phaser.Scene;
-  private readonly arcs: Phaser.GameObjects.Arc[] = [];
+  private readonly arcs: Phaser.GameObjects.Image[] = [];
 
   static isPeg(body: MatterJS.BodyType): boolean {
     return (body.parent ?? body).label === PEG_LABEL;
@@ -47,25 +59,30 @@ export class Pegs {
   constructor(scene: Phaser.Scene, enabled: boolean) {
     this.scene = scene;
     if (!enabled) return;
+    const tex = bakeShape(scene, 'peg'); // pre-baked in Boot
     for (const { x, y } of pegPositions()) {
-      const arc = scene.add.circle(x, y, PEG_RADIUS, 0xffd166).setStrokeStyle(3, 0xfff3bf).setDepth(PEG_DEPTH);
+      const arc = clayImage(scene, x, y, tex).setDepth(PEG_DEPTH);
       scene.matter.add.gameObject(arc, {
         isStatic: true,
         shape: { type: 'circle', radius: PEG_RADIUS },
         restitution: 0.9,
         label: PEG_LABEL,
       });
+      // Setting the body re-centres the origin; the clay texture's body centre is off-centre (shadow padding).
+      arc.setOrigin(tex.originX, tex.originY);
       this.arcs.push(arc);
     }
   }
 
-  /** Brief scale pulse on the peg that owns `body`. */
+  /** Brief scale pulse and a ~60 ms brighten on the peg that owns `body`. */
   flash(body: MatterJS.BodyType): void {
-    const arc = (body.parent ?? body).gameObject as Phaser.GameObjects.Arc | null | undefined;
+    const arc = (body.parent ?? body).gameObject as Phaser.GameObjects.Image | null | undefined;
     if (!arc || !this.arcs.includes(arc)) return;
     this.scene.tweens.killTweensOf(arc);
-    arc.setScale(1);
-    this.scene.tweens.add({ targets: arc, scale: 1.6, duration: 70, yoyo: true });
+    arc.setScale(TEX_SCALE);
+    this.scene.tweens.add({ targets: arc, scale: FLASH_SCALE * TEX_SCALE, duration: 70, yoyo: true });
+    arc.setTintFill(0xffffff);
+    this.scene.time.delayedCall(BRIGHTEN_MS, () => arc.active && arc.clearTint());
   }
 
   destroy(): void {

@@ -20,7 +20,8 @@ const COLORS = [0xff8a65, 0x4fc3f7, 0x81c784, 0xffd54f, 0xba68c8, 0xf06292];
 
 const sparkThrottle = new Throttle(80);
 
-function ensureTextures(scene: Phaser.Scene): void {
+/** Generates the particle textures; GameScene calls it at create so no texture is made during play. */
+export function ensureTextures(scene: Phaser.Scene): void {
   if (scene.textures.exists(STAR_KEY)) return;
   const g = scene.make.graphics({}, false);
   g.fillStyle(0xffffff, 1);
@@ -142,8 +143,15 @@ export function shove(scene: Phaser.Scene, x: number, y: number, balls: OptionBo
   }
 }
 
+/** Anything with a scale: a game object, or OptionBody's visual scale (shell, stripe and label together). */
+export interface Squashable {
+  scaleX: number;
+  scaleY: number;
+  setScale(x: number, y?: number): unknown;
+}
+
 /** Quick squash on `target` (scaleY 0.78 / scaleX 1.15), 60 ms yoyo. */
-export function squash(scene: Phaser.Scene, target: Phaser.GameObjects.Components.Transform): void {
+export function squash(scene: Phaser.Scene, target: Squashable): void {
   scene.tweens.killTweensOf(target);
   target.setScale(1);
   scene.tweens.add({ targets: target, scaleX: 1.15, scaleY: 0.78, duration: 60, yoyo: true });

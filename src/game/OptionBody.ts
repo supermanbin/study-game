@@ -1,5 +1,7 @@
 import Phaser from 'phaser';
-import { FONT_FAMILY, GAME_WIDTH } from '../config';
+import { FONT_FAMILY, GAME_WIDTH, RENDER_SCALE } from '../config';
+import { bakeBall, bakeStripe, clayImage, labelStyleFor } from '../ui/clay';
+import { BALL_COLORS, CLAY } from '../ui/palette';
 import { RestTimer, StuckTimer } from './motion';
 import { clearOfPegsX } from './Pegs';
 import type { PhysicsTuning } from './physicsTuning';
@@ -18,10 +20,12 @@ import {
 /** `resolved`: the question was answered; the ball waits for its fade-out and is no longer clickable. */
 export type OptionState = 'falling' | 'grey' | 'resolved' | 'removed';
 
-const COLORS = [0xff8a65, 0x4fc3f7, 0x81c784, 0xffd54f, 0xba68c8, 0x4db6ac, 0xf06292];
-const GREY = 0xbdbdbd;
-const BALL_DEPTH = 10;
+/** Shell (non-rotating clay ball), stripe overlay (rotates with the body), upright label. */
+const SHELL_DEPTH = 10;
+const STRIPE_DEPTH = 10.5;
 const LABEL_DEPTH = 11;
+/** Clay images are baked at RENDER_SCALE and shown at 1/RENDER_SCALE. */
+const TEX_SCALE = 1 / RENDER_SCALE;
 /** Toss launch: thrown in from just inside the side walls. */
 const TOSS_LEFT_X = 70;
 const TOSS_RIGHT_X = GAME_WIDTH - 70;
@@ -40,8 +44,24 @@ export interface OptionSpec {
 }
 
 /**
- * One answer ball: a Matter circle driving a rotating container (ball graphics with a stripe so the spin
- * shows). The label is a separate, never-rotating Text that follows the ball via `syncLabel()`.
+ * Visual scale shared by shell, stripe and label (pop-in, squash, fade-out). Tweens target this object, never
+ * the physics container, so the body is never scaled; `syncVisuals()` applies it.
+ */
+class VisualScale {
+  scaleX = 1;
+  scaleY = 1;
+  setScale(x: number, y = x): this {
+    this.scaleX = x;
+    this.scaleY = y;
+    return this;
+  }
+}
+
+/**
+ * One answer ball, in two layers (spec §5): a non-rotating clay shell image (shadow, base, light from the upper
+ * left) that follows the body, and the Matter container, which rotates with the body and holds only a short
+ * white stripe so the spin shows. The label is a separate, never-rotating Text. `syncVisuals()` keeps shell and
+ * label on the body. Hit testing uses the physics circle only.
  */
 export class OptionBody {
   readonly questionSerial: number;
@@ -63,17 +83,18 @@ export class OptionBody {
   body: MatterJS.BodyType | null = null;
 
   private readonly scene: Phaser.Scene;
+  /** Matter game object: rotates with the body; holds only the stripe. Never scaled. */
   private readonly container: Phaser.GameObjects.Container;
-  /** Child of the container: pop-in scale and shake offset live here, so the body is never scaled. */
-  private readonly face: Phaser.GameObjects.Container;
-  private readonly bg: Phaser.GameObjects.Graphics;
+  private readonly stripe: Phaser.GameObjects.Image;
+  private readonly shell: Phaser.GameObjects.Image;
   private readonly text: Phaser.GameObjects.Text;
+  private readonly look = new VisualScale();
   private readonly color: number;
   private dropX: number;
   private launchIndex = 0;
   private launchedMs = 0;
   private squashedMs = -Infinity;
-  /** Horizontal shake offset in world space, applied to both the ball face and the label. */
+  /** Horizontal shake offset in world space, applied to shell, stripe and label. */
   private shakeX = 0;
 
   static fromBody(body: MatterJS.BodyType): OptionBody | undefined {
@@ -89,25 +110,24 @@ export class OptionBody {
     this.dropX = spec.x;
     const expr = spec.label.includes('×');
     this.radius = expr ? EXPR_RADIUS : NUMBER_RADIUS;
-    this.color = COLORS[spec.colorIndex % COLORS.length];
+    this.color = BALL_COLORS[spec.colorIndex % BALL_COLORS.length];
 
-    this.bg = scene.add.graphics();
-    this.face = scene.add.container(0, 0, [this.bg]);
-    this.container = scene.add.container(spec.x, TOSS_Y, [this.face]).setVisible(false).setDepth(BALL_DEPTH);
+    // Pre-baked in Boot (bakeAll): these only look up cached textures.
+    this.shell = clayImage(scene, spec.x, TOSS_Y, bakeBall(scene, this.color, this.radius)).setDepth(SHELL_DEPTH).setVisible(false);
+    this.stripe = clayImage(scene, 0, 0, bakeStripe(scene, this.radius));
+    this.container = scene.add.container(spec.x, TOSS_Y, [this.stripe]).setVisible(false).setDepth(STRIPE_DEPTH);
     this.container.setSize(this.radius * 2, this.radius * 2);
     this.text = scene.add
       .text(spec.x, TOSS_Y, spec.label, {
         fontFamily: FONT_FAMILY,
         fontSize: expr ? '28px' : '40px',
         fontStyle: 'bold',
-        color: '#ffffff',
-        stroke: '#00000055',
-        strokeThickness: 4,
+        ...labelStyleFor(this.color),
+        shadow: { offsetX: 0, offsetY: 2, color: 'rgba(0,0,0,.18)', blur: 2, fill: true, stroke: true },
       })
       .setOrigin(0.5)
       .setDepth(LABEL_DEPTH)
       .setVisible(false);
-    this.draw(this.color);
   }
 
   /** Creates the body at the toss/drop start, sets its launch velocity and spin, and pops the ball in. */
@@ -129,11 +149,18 @@ export class OptionBody {
     this.launchedMs = this.scene.time.now;
     this.placeAtStart(t);
     this.container.setVisible(true);
+    this.shell.setVisible(true);
     this.text.setVisible(true);
-    this.syncLabel();
-    this.face.setScale(0.2);
-    this.text.setScale(0.2);
-    this.scene.tweens.add({ targets: [this.face, this.text], scale: 1, duration: 220, ease: 'Back.Out' });
+    this.look.setScale(0.2);
+    this.syncVisuals();
+    this.scene.tweens.add({
+      targets: this.look,
+      scaleX: 1,
+      scaleY: 1,
+      duration: 220,
+      ease: 'Back.Out',
+      onUpdate: () => this.syncVisuals(),
+    });
   }
 
   /** Moves the body back to its toss/drop start with a fresh launch velocity (e.g. after escaping). */
@@ -141,7 +168,7 @@ export class OptionBody {
     if (!this.body || this.state === 'removed') return;
     this.placeAtStart(t);
     this.rest.reset();
-    this.syncLabel();
+    this.syncVisuals();
   }
 
   /** Recent direct contact with the ground. */
@@ -164,23 +191,43 @@ export class OptionBody {
   }
 
   /**
-   * The ball face to squash on a hard hit (never the physics container: scaling that would scale the body).
-   * Null while the pop-in tween runs, during a previous squash, or when removed.
+   * The visual scale (shell, stripe and label together) to squash on a hard hit; never the physics container,
+   * since scaling that would scale the body. Null while the pop-in tween runs, during a previous squash, or when
+   * removed.
    */
-  squashTarget(nowMs: number): Phaser.GameObjects.Container | null {
+  squashTarget(nowMs: number): VisualScale | null {
     if (this.state === 'removed' || !this.body) return null;
     if (nowMs - this.launchedMs < 300 || nowMs - this.squashedMs < 150) return null;
     this.squashedMs = nowMs;
-    return this.face;
+    return this.look;
   }
 
-  /** Keeps the upright label on the ball (call every frame). */
-  syncLabel(): void {
+  /** Keeps shell and upright label on the body and applies shake and visual scale (call every frame). */
+  syncVisuals(): void {
     if (!this.text.active) return;
     const c = this.container;
-    this.text.setPosition(c.x + this.shakeX, c.y);
-    // The face sits in the rotating container: express the world-x shake in its local frame.
-    this.face.setPosition(this.shakeX * Math.cos(c.rotation), -this.shakeX * Math.sin(c.rotation));
+    const { scaleX: sx, scaleY: sy } = this.look;
+    this.shell.setPosition(c.x + this.shakeX, c.y).setScale(sx * TEX_SCALE, sy * TEX_SCALE);
+    this.text.setPosition(c.x + this.shakeX, c.y).setScale(sx, sy);
+    // The stripe sits in the rotating container: express the world-x shake in its local frame.
+    this.stripe
+      .setPosition(this.shakeX * Math.cos(c.rotation), -this.shakeX * Math.sin(c.rotation))
+      .setScale(sx * TEX_SCALE, sy * TEX_SCALE);
+  }
+
+  /** Debug/e2e: body radius, shell geometry and the two layers' angles. */
+  debugInfo(): { radius: number; shellW: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number } {
+    return {
+      radius: this.body?.circleRadius ?? this.radius,
+      shellW: this.shell.displayWidth,
+      shellOriginX: this.shell.originX,
+      shellX: this.shell.x,
+      shellY: this.shell.y,
+      x: this.body?.position.x ?? this.container.x,
+      y: this.body?.position.y ?? this.container.y,
+      shellAngle: this.shell.angle,
+      stripeAngle: this.container.angle,
+    };
   }
 
   get clickable(): boolean {
@@ -190,8 +237,10 @@ export class OptionBody {
   setGrey(): void {
     if (this.state === 'removed' || this.state === 'resolved') return;
     this.state = 'grey';
-    this.draw(GREY);
-    this.text.setColor('#757575');
+    this.shell.setTexture(bakeBall(this.scene, CLAY.faded, this.radius, true).key);
+    this.stripe.setAlpha(0.5);
+    const faded = labelStyleFor(CLAY.faded);
+    this.text.setColor(faded.color).setStroke(faded.stroke, faded.strokeThickness).setShadow(0, 0, 'rgba(0,0,0,0)', 0);
   }
 
   shake(): void {
@@ -202,10 +251,10 @@ export class OptionBody {
       duration: 50,
       yoyo: true,
       repeat: 3,
-      onUpdate: () => this.syncLabel(),
+      onUpdate: () => this.syncVisuals(),
       onComplete: () => {
         this.shakeX = 0;
-        this.syncLabel();
+        this.syncVisuals();
       },
     });
   }
@@ -214,26 +263,29 @@ export class OptionBody {
   vanish(): void {
     if (this.state === 'removed') return;
     this.state = 'removed';
-    // Pop-in (face, text) and shake (this) tweens must not fight the fade-out.
-    this.scene.tweens.killTweensOf([this, this.face, this.text]);
+    // Pop-in / squash (look) and shake (this) tweens must not fight the fade-out.
+    this.scene.tweens.killTweensOf([this, this.look]);
     if (this.body) {
       this.scene.matter.world.remove(this.body);
       this.body = null;
     }
-    if (!this.container.visible) {
+    const destroy = () => {
+      this.shell.destroy();
       this.container.destroy();
       this.text.destroy();
+    };
+    if (!this.container.visible) {
+      destroy();
       return;
     }
+    this.scene.tweens.add({ targets: [this.shell, this.container, this.text], alpha: 0, duration: 300 });
     this.scene.tweens.add({
-      targets: [this.container, this.text],
-      alpha: 0,
-      scale: 1.25,
+      targets: this.look,
+      scaleX: 1.25,
+      scaleY: 1.25,
       duration: 300,
-      onComplete: () => {
-        this.container.destroy();
-        this.text.destroy();
-      },
+      onUpdate: () => this.syncVisuals(),
+      onComplete: destroy,
     });
   }
 
@@ -278,16 +330,5 @@ export class OptionBody {
     m.body.setVelocity(body, { x: vx, y: vy });
     m.body.setAngularVelocity(body, Phaser.Math.FloatBetween(-0.15, 0.15));
     this.container.setPosition(x, y);
-  }
-
-  private draw(fill: number): void {
-    const g = this.bg;
-    const r = this.radius;
-    g.clear();
-    g.fillStyle(fill, 1).fillCircle(0, 0, r);
-    // White stripe from the rim inward: shows the spin.
-    g.fillStyle(0xffffff, 0.9).fillRect(-4, -r + 4, 8, 14);
-    g.fillStyle(0xffffff, 0.35).fillCircle(-r * 0.32, -r * 0.35, r * 0.27);
-    g.lineStyle(4, 0xffffff, 0.9).strokeCircle(0, 0, r - 2);
   }
 }

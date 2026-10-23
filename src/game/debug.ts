@@ -17,6 +17,8 @@ export interface DebugState {
   pileCount?: number;
   /** True while the next question waits (miss reveal or post-correct fade). */
   nextQuestionPending?: boolean;
+  /** Balls in the world: body radius, clay shell geometry, shell / stripe angles (Review Focus 3). */
+  balls?: { radius: number; shellW: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number }[];
   stars?: number;
   litCards?: number;
   settings?: Settings;

@@ -1,4 +1,4 @@
-import type Phaser from 'phaser';
+import Phaser from 'phaser';
 import { FONT_FAMILY, RENDER_SCALE } from '../config';
 import { bakeBackground, bakeBall, bakeRoundRect, bakeShape, clayImage, css } from './clay';
 import { CLAY } from './palette';
@@ -49,9 +49,25 @@ export function clayLock(scene: Phaser.Scene, x: number, y: number, size: number
 const TRACK = { w: 84, h: 44 };
 const KNOB_R = 16;
 
-/** On/off switch: inset track with a raised knob (mint, right when on; faded, left when off). */
-export function clayToggle(scene: Phaser.Scene, x: number, y: number, on: boolean): Phaser.GameObjects.Container {
+/**
+ * On/off switch: inset track with a raised knob (mint, right when on; faded, left when off). With `onTap` the
+ * switch is tappable (track rect; fires on release of a press that started on it).
+ */
+export function clayToggle(scene: Phaser.Scene, x: number, y: number, on: boolean, onTap?: () => void): Phaser.GameObjects.Container {
   const track = clayImage(scene, 0, 0, bakeRoundRect(scene, TRACK.w, TRACK.h, TRACK.h / 2, on ? 0xcfe9d6 : CLAY.hpOff, true));
   const knob = clayImage(scene, (on ? 1 : -1) * (TRACK.w / 2 - KNOB_R - 6), 0, bakeBall(scene, on ? 0x6fcf97 : CLAY.faded, KNOB_R, !on));
-  return scene.add.container(x, y, [track, knob]);
+  const c = scene.add.container(x, y, [track, knob]).setSize(TRACK.w, TRACK.h);
+  if (onTap) {
+    let armed = false;
+    c.setInteractive(new Phaser.Geom.Rectangle(0, 0, TRACK.w, TRACK.h), Phaser.Geom.Rectangle.Contains)
+      .on('pointerdown', () => (armed = true))
+      .on('pointerout', () => (armed = false))
+      .on('pointerup', () => {
+        if (!armed) return;
+        armed = false;
+        onTap();
+      });
+    c.input!.cursor = 'pointer';
+  }
+  return c;
 }
