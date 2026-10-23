@@ -15,7 +15,7 @@ describe('levels', () => {
     for (const id of [3, 4, 5, 6] as const) expect(getLevel(id).facts).toHaveLength(45);
   });
   it('time limits, bosses, kinds', () => {
-    expect(LEVELS.map(l => l.timeLimitSec)).toEqual([140, 130, 110, 110, 100, 110]);
+    expect(LEVELS.map(l => l.timeLimitSec)).toEqual([140, 150, 110, 110, 120, 110]);
     expect(LEVELS.filter(l => l.boss).map(l => l.id)).toEqual([3, 6]);
     expect(LEVELS.map(l => l.kinds)).toEqual([
       ['mul'], ['mul'], ['mul', 'reverse'], ['mulAddSub'], ['div'], ['mul', 'reverse', 'mulAddSub', 'div'],
