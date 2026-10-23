@@ -166,3 +166,39 @@ test('tapping a settings switch toggles it like its row button', async ({ page }
   await page.mouse.click(t.x, t.y);
   await expect.poll(async () => (await dbg(page)).settings!.music).toBe(!before);
 });
+
+const clayCount = (p: Page) =>
+  p.evaluate(() => Object.keys((window as unknown as { __funyGame: G }).__funyGame.textures.list).filter(k => k.startsWith('clay:')).length);
+
+test('Boot pre-bakes every menu-side and result texture (no clay texture is added later)', async ({ page }) => {
+  await page.addInitScript(() => localStorage.clear());
+  const bad = await ready(page);
+  // Count recorded by Boot right after its pre-bakes, so Menu's own textures are covered too.
+  const boot = (await page.evaluate(() => (window as unknown as { __funyDebug: { state(): { clayBake?: { textures: number } } } }).__funyDebug.state().clayBake))!.textures;
+  expect(await clayCount(page)).toBe(boot);
+  for (const [to, key] of [['开始游戏', 'LevelSelect'], ['设置', 'Settings'], ['口诀卡册', 'Cards']] as const) {
+    await press(page, to);
+    await sceneIs(page, key);
+    if (key === 'Settings') {
+      // Both switch states: flip music off and back on (each flip restarts the scene).
+      for (const want of [false, true]) {
+        await press(page, '音乐');
+        await expect.poll(async () => (await dbg(page)).settings!.music).toBe(want);
+        await page.waitForTimeout(200);
+      }
+    }
+    await press(page, '返回');
+    await sceneIs(page, 'Menu');
+  }
+  await page.evaluate(() => (window as unknown as { __funyDebug: Dbg }).__funyDebug.startLevel(1));
+  await page.waitForFunction(() => {
+    const s = (window as unknown as { __funyDebug: Dbg }).__funyDebug.state();
+    return s.scene === 'Game' && s.status === 'playing';
+  });
+  for (let i = 0; i < 20; i++) await page.evaluate(() => (window as unknown as { __funyDebug: Dbg }).__funyDebug.answerCorrect());
+  await sceneIs(page, 'Result');
+  expect((await page.evaluate(() => (window as unknown as { __funyDebug: { state(): { stars?: number } } }).__funyDebug.state())).stars).toBe(3);
+  await page.waitForTimeout(300);
+  expect(await clayCount(page)).toBe(boot);
+  expect(bad).toEqual([]);
+});

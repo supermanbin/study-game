@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { FONT_FAMILY } from '../config';
-import { bakeRoundRect, clayImage, css, labelStyleFor } from './clay';
+import { bakeRoundRect, bakeRoundRectPair, clayImage, labelStyleFor, type ClayTex } from './clay';
 import { CLAY } from './palette';
 
 export interface ButtonOpts {
@@ -15,6 +15,21 @@ export interface ButtonOpts {
 
 /** Pressed buttons sink this many design px. */
 const PRESS_SINK = 3;
+
+/** Geometry and fill of a button with these options (shared by createButton and the Boot pre-bake). */
+function buttonLook(opts: ButtonOpts): { w: number; h: number; radius: number; fill: number; disabled: boolean } {
+  const w = opts.width ?? 280;
+  const h = Math.max(64, opts.height ?? 72);
+  const disabled = opts.disabled ?? false;
+  const fill = disabled ? CLAY.faded : (opts.color ?? CLAY.primary);
+  return { w, h, radius: Math.min(24, h / 3), fill, disabled };
+}
+
+/** Bakes (or looks up) a button's textures: raised, and pressed unless disabled. Boot pre-bakes via this. */
+export function bakeButton(scene: Phaser.Scene, opts: ButtonOpts = {}): { raised: ClayTex; pressed?: ClayTex } {
+  const { w, h, radius, fill, disabled } = buttonLook(opts);
+  return disabled ? { raised: bakeRoundRect(scene, w, h, radius, fill) } : bakeRoundRectPair(scene, w, h, radius, fill);
+}
 
 const registry = new WeakMap<Phaser.Scene, Map<string, () => void>>();
 
@@ -34,16 +49,12 @@ export function createButton(
   onClick: () => void,
   opts: ButtonOpts = {},
 ): Phaser.GameObjects.Container {
-  const w = opts.width ?? 280;
-  const h = Math.max(64, opts.height ?? 72);
-  const disabled = opts.disabled ?? false;
-  const fill = disabled ? CLAY.faded : (opts.color ?? CLAY.primary);
-  const radius = Math.min(24, h / 3);
+  const { w, h, disabled, fill } = buttonLook(opts);
+  const { raised, pressed } = bakeButton(scene, opts);
 
-  const body = clayImage(scene, 0, 0, bakeRoundRect(scene, w, h, radius, fill));
-  const labelStyle = disabled
-    ? { color: css(CLAY.fadedText), stroke: '#000000', strokeThickness: 0 }
-    : labelStyleFor(fill);
+  const body = clayImage(scene, 0, 0, raised);
+  // Disabled buttons are faded clay: labelStyleFor gives them the faded ink darkened to ≥ 3:1.
+  const labelStyle = labelStyleFor(fill);
   const text = scene.add
     .text(0, opts.subtitle ? -32 : 0, label, { fontFamily: FONT_FAMILY, fontSize: `${opts.fontSize ?? 36}px`, fontStyle: 'bold', ...labelStyle })
     .setOrigin(0.5);
@@ -67,10 +78,8 @@ export function createButton(
     }
     map.set(label, onClick);
 
-    const raised = bakeRoundRect(scene, w, h, radius, fill);
-    const pressed = bakeRoundRect(scene, w, h, radius, fill, false, true);
     const setPressed = (down: boolean) => {
-      body.setTexture(down ? pressed.key : raised.key);
+      body.setTexture(down ? pressed!.key : raised.key);
       for (const [obj, y0] of parts) obj.setY(y0 + (down ? PRESS_SINK : 0));
     };
     // Only a press that started on this button may click it: pressing A and releasing on B clicks neither.

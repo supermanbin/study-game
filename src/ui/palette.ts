@@ -17,6 +17,8 @@ export const CLAY = {
   faded: 0xd9d0c5,
   fadedText: 0x9b8f82,
   peg: 0xf2b765,
+  /** Peg flash: the peg colour moved ~45% toward white (a brighter clay peg, pre-baked). */
+  pegFlash: 0xf8d7aa,
   floor: 0xc99a74,
   /** Warning-line dots (inset). */
   warnDot: 0xe9b3a6,
@@ -29,3 +31,11 @@ export const CLAY = {
 
 /** Ball colours in spec order: coral, sky, mint, lemon, grape, peach, teal. */
 export const BALL_COLORS: readonly number[] = [0xff8a6b, 0x6fb7f2, 0x6fcf97, 0xf7c94b, 0xb48ce6, 0xf79ab0, 0x5cc8c0];
+
+/** Settings switch: inset track (pale mint when on, the empty-HP grey when off) and its raised knob. */
+export const TOGGLE = {
+  onTrack: 0xcfe9d6,
+  offTrack: CLAY.hpOff,
+  knobOn: BALL_COLORS[2],
+  knobOff: CLAY.faded,
+} as const;

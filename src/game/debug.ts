@@ -22,6 +22,8 @@ export interface DebugState {
   stars?: number;
   litCards?: number;
   settings?: Settings;
+  /** Boot's clay pre-bake: elapsed ms and the number of `clay:` textures right after it. */
+  clayBake?: { ms: number; textures: number };
 }
 
 export interface FunyDebug {
@@ -86,7 +88,8 @@ export function installDebug(game: Phaser.Game): void {
     state: () => {
       const s = active();
       const settings = (game.registry.get('progress') as ProgressData | undefined)?.settings;
-      return { scene: s?.scene.key ?? 'none', settings, ...(s?.debugState?.() ?? {}) };
+      const clayBake = game.registry.get('clayBake') as DebugState['clayBake'];
+      return { scene: s?.scene.key ?? 'none', settings, clayBake, ...(s?.debugState?.() ?? {}) };
     },
   };
 }

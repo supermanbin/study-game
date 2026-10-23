@@ -165,26 +165,61 @@ function drawBlurred(ctx: CanvasRenderingContext2D, img: HTMLCanvasElement, x: n
   ctx.restore();
 }
 
-/** `drawBlurred` of a temporary layer, released afterwards. */
-function drawBlurredTemp(ctx: CanvasRenderingContext2D, img: HTMLCanvasElement, x: number, y: number, sigma: number, color: number, alpha: number): void {
-  drawBlurred(ctx, img, x, y, sigma, color, alpha);
-  release(img);
-}
+/**
+ * Wide blurs run on a layer built at 1/f resolution (f ≤ BLUR_MAX_DOWNSAMPLE, keeping σ ≥ BLUR_MIN_SIGMA device
+ * px) and are drawn back scaled up with plain bilinear smoothing: a gaussian that wide has no detail the upsample
+ * could lose, and the cost falls with the pixel count. Crisp edges come from the full-resolution body fill.
+ */
+const BLUR_MAX_DOWNSAMPLE = 4;
+const BLUR_MIN_SIGMA = 3;
 
-/** A layer of `color`: the silhouette (inverted = everything but the silhouette, `margin` px larger on each side). */
-function tint(sil: HTMLCanvasElement, color: number, inverted: boolean, margin = 0): HTMLCanvasElement {
-  const { canvas, ctx } = newCanvas(sil.width + 2 * margin, sil.height + 2 * margin);
+/**
+ * A layer of `color` at 1/f resolution: the silhouette (inverted = everything but the silhouette, `margin`
+ * device px larger on each side).
+ */
+function tint(sil: HTMLCanvasElement, color: number, inverted: boolean, margin = 0, f = 1): HTMLCanvasElement {
+  const { canvas, ctx } = newCanvas((sil.width + 2 * margin) / f, (sil.height + 2 * margin) / f);
   ctx.fillStyle = css(color);
   if (inverted) {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.globalCompositeOperation = 'destination-out';
-    ctx.drawImage(sil, margin, margin);
+    ctx.drawImage(sil, margin / f, margin / f, sil.width / f, sil.height / f);
   } else {
-    ctx.drawImage(sil, 0, 0);
+    ctx.drawImage(sil, 0, 0, sil.width / f, sil.height / f);
     ctx.globalCompositeOperation = 'source-in';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
   }
   return canvas;
+}
+
+/**
+ * Draws the `tint` layer of `sil` at device (x, y) (its top-left, margin included) blurred by σ device px, at
+ * `alpha`, with the context's current composite operation.
+ */
+function drawBlurredLayer(
+  ctx: CanvasRenderingContext2D, sil: HTMLCanvasElement, color: number, inverted: boolean, margin: number,
+  x: number, y: number, sigma: number, alpha: number,
+): void {
+  const f = Math.max(1, Math.min(BLUR_MAX_DOWNSAMPLE, Math.floor(sigma / BLUR_MIN_SIGMA)));
+  const layer = tint(sil, color, inverted, margin, f);
+  if (f === 1) {
+    drawBlurred(ctx, layer, x, y, sigma, color, alpha);
+    release(layer);
+    return;
+  }
+  // Blurred on a small canvas with room for the spread (3σ) on every side, then drawn back scaled up.
+  const pad = Math.ceil((3 * sigma) / f);
+  const small = newCanvas(layer.width + 2 * pad, layer.height + 2 * pad);
+  drawBlurred(small.ctx, layer, pad, pad, sigma / f, color, 1);
+  release(layer);
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.globalAlpha = alpha;
+  // Default (bilinear) smoothing: 'high' quality is several times slower and no smoother on a blur.
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(small.canvas, x - pad * f, y - pad * f, small.canvas.width * f, small.canvas.height * f);
+  ctx.restore();
+  release(small.canvas);
 }
 
 interface PaintOpts {
@@ -202,8 +237,18 @@ interface PaintOpts {
  * material metrics (clayParams).
  */
 function paintClay(target: CanvasRenderingContext2D, shape: Draw, color: number, size: number, opts: PaintOpts = {}): void {
-  const W = target.canvas.width;
-  const H = target.canvas.height;
+  const layers = clayLayers(target.canvas.width, target.canvas.height, shape, color, size, opts);
+  composeClay(target, layers, color, size, opts);
+  releaseLayers(layers);
+}
+
+/** Silhouette and lit body (base + inner dark / light) of a clay shape on a W×H device-px canvas. */
+interface ClayLayers {
+  sil: HTMLCanvasElement;
+  body: HTMLCanvasElement;
+}
+
+function clayLayers(W: number, H: number, shape: Draw, color: number, size: number, opts: PaintOpts): ClayLayers {
   const p = clayParams(Math.min(size, MAX_MATERIAL_SIZE));
   const t = clayTones(color);
 
@@ -212,16 +257,6 @@ function paintClay(target: CanvasRenderingContext2D, shape: Draw, color: number,
   sil.ctx.fillStyle = '#000';
   sil.ctx.strokeStyle = '#000';
   shape(sil.ctx);
-
-  if (!opts.inset) {
-    const k = (opts.drop ?? 1) * (opts.faded ? 0.8 : 1);
-    if (k > 0) {
-      drawBlurredTemp(target, tint(sil.canvas, t.drop, false), p.dropX * k * S, p.dropY * k * S, (p.dropBlur / 2) * k * S, t.drop, opts.faded ? 0.25 : t.dropAlpha);
-    }
-  } else {
-    // Mockup warning dot: `0 1px 0 #fff` — a pressed-in hole catches light on its lower lip.
-    drawBlurredTemp(target, tint(sil.canvas, 0xffffff, false), 0, Math.max(1, 0.08 * size) * S, 0.5 * S, 0xffffff, 0.8);
-  }
 
   const body = newCanvas(W, H);
   const fill = tint(sil.canvas, color, false);
@@ -232,7 +267,7 @@ function paintClay(target: CanvasRenderingContext2D, shape: Draw, color: number,
   const layer = (c: number, alpha: number, depth: number, dir: 1 | -1) => {
     // The inverted silhouette shifted by `dir·depth` leaves a crescent of colour inside the opposite edge.
     const d = dir * depth * S;
-    drawBlurredTemp(body.ctx, tint(sil.canvas, c, true, margin), d - margin, d - margin, depth * 0.8 * S, c, alpha);
+    drawBlurredLayer(body.ctx, sil.canvas, c, true, margin, d - margin, d - margin, depth * 0.8 * S, alpha);
   };
   if (opts.inset) {
     layer(t.dark, Math.min(0.6, t.darkAlpha + 0.12), p.dark, 1);
@@ -241,12 +276,31 @@ function paintClay(target: CanvasRenderingContext2D, shape: Draw, color: number,
     layer(t.dark, t.darkAlpha, p.dark, -1);
     layer(t.light, t.lightAlpha, p.light, 1);
   }
+  return { sil: sil.canvas, body: body.canvas };
+}
+
+/** Draws the drop shadow (raised; shrunk by `opts.drop`) or the inset lip, then the body, onto `target`. */
+function composeClay(target: CanvasRenderingContext2D, { sil, body }: ClayLayers, color: number, size: number, opts: PaintOpts): void {
+  const p = clayParams(Math.min(size, MAX_MATERIAL_SIZE));
+  const t = clayTones(color);
+  if (!opts.inset) {
+    const k = (opts.drop ?? 1) * (opts.faded ? 0.8 : 1);
+    if (k > 0) {
+      drawBlurredLayer(target, sil, t.drop, false, 0, p.dropX * k * S, p.dropY * k * S, (p.dropBlur / 2) * k * S, opts.faded ? 0.25 : t.dropAlpha);
+    }
+  } else {
+    // Mockup warning dot: `0 1px 0 #fff` — a pressed-in hole catches light on its lower lip.
+    drawBlurredLayer(target, sil, 0xffffff, false, 0, 0, Math.max(1, 0.08 * size) * S, 0.5 * S, 0.8);
+  }
   target.save();
   target.setTransform(1, 0, 0, 1, 0, 0);
-  target.drawImage(body.canvas, 0, 0);
+  target.drawImage(body, 0, 0);
   target.restore();
-  release(body.canvas);
-  release(sil.canvas);
+}
+
+function releaseLayers({ sil, body }: ClayLayers): void {
+  release(body);
+  release(sil);
 }
 
 /** Padding (design px) around a raised shape of `size` for its drop shadow: [low (top/left), high (bottom/right)]. */
@@ -346,6 +400,25 @@ export function bakeRoundRect(scene: Phaser.Scene, w: number, h: number, r: numb
   return bake(scene, clayKey(kind, color, w, h, r, S), w, h, size, inset, (ctx, ox, oy) => {
     paintClay(ctx, c => { roundRectPath(c, ox, oy, w, h, r); c.fill(); }, color, size, { inset, faded: color === CLAY.faded, drop: pressed ? 0.35 : 1 });
   });
+}
+
+/**
+ * The raised and pressed textures of one clay button (same keys as bakeRoundRect), painting their identical
+ * body once.
+ */
+export function bakeRoundRectPair(scene: Phaser.Scene, w: number, h: number, r: number, color: number): { raised: ClayTex; pressed: ClayTex } {
+  const size = Math.min(w, h);
+  const faded = color === CLAY.faded;
+  let layers: ClayLayers | undefined;
+  // Both textures have the same size and padding, so the layers painted for the first fit the second.
+  const draw = (drop: number) => (ctx: CanvasRenderingContext2D, ox: number, oy: number) => {
+    layers ??= clayLayers(ctx.canvas.width, ctx.canvas.height, c => { roundRectPath(c, ox, oy, w, h, r); c.fill(); }, color, size, { faded });
+    composeClay(ctx, layers, color, size, { faded, drop });
+  };
+  const raised = bake(scene, clayKey('rr', color, w, h, r, S), w, h, size, false, draw(1));
+  const pressed = bake(scene, clayKey('rrPressed', color, w, h, r, S), w, h, size, false, draw(0.35));
+  if (layers) releaseLayers(layers);
+  return { raised, pressed };
 }
 
 /** Full-screen cream radial (design 1280×720, displayed 1:1: a smooth gradient needs no extra resolution). */
@@ -566,5 +639,6 @@ export function bakeAll(scene: Phaser.Scene): number {
       bakeShape(scene, kind);
     }
   }
+  bakeShape(scene, 'peg', CLAY.pegFlash); // peg flash (Pegs.flash)
   return performance.now() - t0;
 }

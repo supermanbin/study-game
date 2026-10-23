@@ -10,6 +10,7 @@ import { CardsScene } from './scenes/CardsScene';
 import { SettingsScene } from './scenes/SettingsScene';
 import { mountTuningPanel } from './game/TuningPanel';
 import { MAX_FRAME_DELTA_MS } from './game/tuning';
+import { BG } from './ui/theme';
 
 mountTuningPanel();
 
@@ -18,7 +19,8 @@ const game = new Phaser.Game({
   // Rendered at RENDER_SCALE × the design size; each scene's camera zooms back (src/ui/hiDpi.ts).
   width: GAME_WIDTH * RENDER_SCALE,
   height: GAME_HEIGHT * RENDER_SCALE,
-  backgroundColor: '#fdf6e3',
+  // Palette page colour, so screen shake never shows a strip of another colour.
+  backgroundColor: BG,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,

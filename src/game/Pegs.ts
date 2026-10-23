@@ -1,6 +1,7 @@
 import type Phaser from 'phaser';
 import { GAME_WIDTH, RENDER_SCALE } from '../config';
-import { bakeShape, clayImage } from '../ui/clay';
+import { bakeShape, clayImage, type ClayTex } from '../ui/clay';
+import { CLAY } from '../ui/palette';
 import { PEG_RADIUS, PEG_ROWS_Y, PEG_SPACING } from './tuning';
 
 const PEG_LABEL = 'peg';
@@ -51,6 +52,8 @@ export function clearOfPegsX(x: number, y: number, r: number, min: number, max: 
 export class Pegs {
   private readonly scene: Phaser.Scene;
   private readonly arcs: Phaser.GameObjects.Image[] = [];
+  private tex?: ClayTex;
+  private lit?: ClayTex;
 
   static isPeg(body: MatterJS.BodyType): boolean {
     return (body.parent ?? body).label === PEG_LABEL;
@@ -59,7 +62,8 @@ export class Pegs {
   constructor(scene: Phaser.Scene, enabled: boolean) {
     this.scene = scene;
     if (!enabled) return;
-    const tex = bakeShape(scene, 'peg'); // pre-baked in Boot
+    const tex = (this.tex = bakeShape(scene, 'peg')); // both pre-baked in Boot (bakeAll)
+    this.lit = bakeShape(scene, 'peg', CLAY.pegFlash);
     for (const { x, y } of pegPositions()) {
       const arc = clayImage(scene, x, y, tex).setDepth(PEG_DEPTH);
       scene.matter.add.gameObject(arc, {
@@ -81,8 +85,9 @@ export class Pegs {
     this.scene.tweens.killTweensOf(arc);
     arc.setScale(TEX_SCALE);
     this.scene.tweens.add({ targets: arc, scale: FLASH_SCALE * TEX_SCALE, duration: 70, yoyo: true });
-    arc.setTintFill(0xffffff);
-    this.scene.time.delayedCall(BRIGHTEN_MS, () => arc.active && arc.clearTint());
+    // A brighter clay peg (same size and origin, its own shadow), not a white fill over the shadow too.
+    arc.setTexture(this.lit!.key);
+    this.scene.time.delayedCall(BRIGHTEN_MS, () => arc.active && arc.setTexture(this.tex!.key));
   }
 
   destroy(): void {
