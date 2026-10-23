@@ -2,7 +2,8 @@ import type { LevelId } from '../core/types';
 
 /** Gameplay layout and physics constants (design resolution 1280×720). Tune by playtest. */
 export const GROUND_Y = 700;
-export const WARNING_LINE_Y = 440;
+/** Just under the lowest peg row; the pile below it holds about 2 layers of balls. */
+export const WARNING_LINE_Y = 520;
 export const QUESTION_AREA_BOTTOM = 140;
 export const PILE_OVERFLOW_MS = 2000;
 
@@ -26,7 +27,7 @@ export const HEAVY_DENSITY = 0.006;
  * Peg rows (staggered 6/5 per row, PEG_SPACING apart). The diagonal gap between neighbouring rows' pegs
  * (hypot(PEG_SPACING / 2, 80) ≈ 126) must exceed 2 × (EXPR_RADIUS + PEG_RADIUS) = 122 so every ball passes.
  */
-export const PEG_ROWS_Y = [240, 320, 400];
+export const PEG_ROWS_Y = [240, 320, 400, 480];
 export const PEG_RADIUS = 9;
 export const PEG_SPACING = 195;
 

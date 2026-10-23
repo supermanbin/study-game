@@ -7,8 +7,8 @@ describe('pegPositions', () => {
   const pegs = pegPositions();
   const minGap = 2 * (Math.max(EXPR_RADIUS, NUMBER_RADIUS) + PEG_RADIUS);
 
-  it('builds staggered rows of 6 / 5 pegs', () => {
-    expect(PEG_ROWS_Y.map(y => pegs.filter(p => p.y === y).length)).toEqual([6, 5, 6]);
+  it('builds 4 staggered rows of 6 / 5 pegs', () => {
+    expect(PEG_ROWS_Y.map(y => pegs.filter(p => p.y === y).length)).toEqual([6, 5, 6, 5]);
   });
 
   it('leaves room for the largest ball between any two pegs', () => {
