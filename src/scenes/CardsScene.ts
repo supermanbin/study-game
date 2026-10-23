@@ -5,6 +5,7 @@ import { isCardLit } from '../core/progress';
 import { createButton } from '../ui/Button';
 import type { DebuggableScene, DebugState } from '../game/debug';
 import { BG, getProgress, title } from '../ui/theme';
+import { applyHiDpi } from '../ui/hiDpi';
 
 export class CardsScene extends Phaser.Scene implements DebuggableScene {
   private lit = 0;
@@ -14,6 +15,7 @@ export class CardsScene extends Phaser.Scene implements DebuggableScene {
   }
 
   create(): void {
+    applyHiDpi(this);
     this.cameras.main.setBackgroundColor(BG);
     const p = getProgress(this);
     this.lit = ALL_FACTS.filter(f => isCardLit(p, factKey(f.a, f.b))).length;

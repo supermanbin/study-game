@@ -40,6 +40,7 @@ import {
   SPAWN_X_MIN,
   WARNING_LINE_Y,
 } from '../game/tuning';
+import { applyHiDpi } from '../ui/hiDpi';
 
 /** After a correct answer: the other balls fade at this point, the next question starts after the second. */
 const RESOLVED_VANISH_MS = 700;
@@ -113,6 +114,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   private gameMs = 0;
 
   create(): void {
+    applyHiDpi(this);
     this.noTime = location.search.includes('debug') && location.search.includes('notime');
     this.gameMs = 0;
     this.cameras.main.setBackgroundColor('#e3f2fd');

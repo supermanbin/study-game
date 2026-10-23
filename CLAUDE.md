@@ -25,6 +25,8 @@ node scripts/tts/generate.mjs [--force]              # regenerate voice mp3s
 
 **Shared state via the Phaser registry**, keys `progress` (current `ProgressData`; replace with `registry.set`, don't mutate), `store` (a `ProgressStore`) and `audio` (`AudioService`). They are set in `BootScene`; `getProgress/getStore/getAudio` in `src/ui/theme.ts` read them. `ProgressStore` (`src/core/store.ts`) is the swap point for persistence: `LocalStorageProgressStore` today, a server-backed store later, with no scene changes. Always persist through `store.save`.
 
+**HiDPI rendering.** The canvas is `RENDER_SCALE` × 1280×720 (`src/config.ts`, from devicePixelRatio and window size) and every scene must call `applyHiDpi(this)` (`src/ui/hiDpi.ts`) as the first line of `create()`. It zooms the main camera from the top-left so all layout, physics and input stay in 1280×720 design coordinates, and rasterizes Text at the same scale. Without it, a new scene renders at the wrong size; never lay out using `scale.width` / camera size. `e2e/hidpi.spec.ts` guards this at 2× DPR.
+
 **Voice pipeline.** `content/voice-lines.json` (text + ids, 12 categories) -> `scripts/tts/generate.mjs` (provider in `scripts/tts/providers/`, edge-tts; honors `EDGE_TTS_BIN`, else `.venv-tts/bin/edge-tts`) -> `public/audio/voice/<id>.mp3` (committed) -> `src/audio/voiceLines.ts` / `AudioService`. `src/audio/voiceLines.test.ts` requires an mp3 for every id and checks that wrong/missed/levelFail lines avoid forbidden words, so after editing the JSON, regenerate before running tests. Setup: `python3 -m venv .venv-tts && .venv-tts/bin/pip install edge-tts`.
 
 ## Debug hook and e2e

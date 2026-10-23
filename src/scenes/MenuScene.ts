@@ -3,6 +3,7 @@ import { FONT_FAMILY, GAME_WIDTH } from '../config';
 import { installDebug } from '../game/debug';
 import { createButton } from '../ui/Button';
 import { BG, getAudio, getProgress, title } from '../ui/theme';
+import { applyHiDpi } from '../ui/hiDpi';
 
 export class MenuScene extends Phaser.Scene {
   constructor() {
@@ -10,6 +11,7 @@ export class MenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    applyHiDpi(this);
     this.cameras.main.setBackgroundColor(BG);
     getAudio(this).setMusic(getProgress(this).settings.music);
     const cx = GAME_WIDTH / 2;

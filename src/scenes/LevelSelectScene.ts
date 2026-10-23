@@ -3,6 +3,7 @@ import { FONT_FAMILY } from '../config';
 import { LEVELS } from '../core/levels';
 import { createButton } from '../ui/Button';
 import { BG, getProgress, title } from '../ui/theme';
+import { applyHiDpi } from '../ui/hiDpi';
 
 export class LevelSelectScene extends Phaser.Scene {
   constructor() {
@@ -10,6 +11,7 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   create(): void {
+    applyHiDpi(this);
     this.cameras.main.setBackgroundColor(BG);
     const p = getProgress(this);
     title(this, '选择关卡', 60);

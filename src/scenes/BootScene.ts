@@ -5,6 +5,7 @@ import { AudioService } from '../audio/AudioService';
 import { defaultProgress, type ProgressData } from '../core/progress';
 import { mulberry32 } from '../core/rng';
 import { LocalStorageProgressStore, safeLocalStorage } from '../core/store';
+import { applyHiDpi } from '../ui/hiDpi';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -18,6 +19,7 @@ export class BootScene extends Phaser.Scene {
   }
 
   async create(): Promise<void> {
+    applyHiDpi(this);
     const registry = this.game.registry;
     registry.set(
       'audio',

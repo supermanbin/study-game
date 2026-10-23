@@ -3,6 +3,7 @@ import { FONT_FAMILY } from '../config';
 import type { Settings } from '../core/progress';
 import { createButton } from '../ui/Button';
 import { BG, getAudio, getProgress, getStore, title } from '../ui/theme';
+import { applyHiDpi } from '../ui/hiDpi';
 
 const ROWS: { key: keyof Settings; label: string }[] = [
   { key: 'music', label: '音乐' },
@@ -16,6 +17,7 @@ export class SettingsScene extends Phaser.Scene {
   }
 
   create(): void {
+    applyHiDpi(this);
     this.cameras.main.setBackgroundColor(BG);
     title(this, '设置', 90, 64);
     ROWS.forEach((row, i) => {

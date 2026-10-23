@@ -6,6 +6,7 @@ import { QUESTIONS_PER_LEVEL } from '../core/levels';
 import type { DebuggableScene, DebugState } from '../game/debug';
 import { createButton } from '../ui/Button';
 import { BG, INK } from '../ui/theme';
+import { applyHiDpi } from '../ui/hiDpi';
 
 const REASONS = { time: '时间到啦', pile: '地面堆满啦', notEnough: '差一点点，加油' } as const;
 
@@ -21,6 +22,7 @@ export class ResultScene extends Phaser.Scene implements DebuggableScene {
   }
 
   create(): void {
+    applyHiDpi(this);
     const r = this.result;
     const cx = GAME_WIDTH / 2;
     const font = { fontFamily: FONT_FAMILY, color: INK };

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT } from './config';
+import { GAME_WIDTH, GAME_HEIGHT, RENDER_SCALE } from './config';
+import { debugEnabled } from './game/debug';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { ResultScene } from './scenes/ResultScene';
@@ -12,10 +13,11 @@ import { MAX_FRAME_DELTA_MS } from './game/tuning';
 
 mountTuningPanel();
 
-new Phaser.Game({
+const game = new Phaser.Game({
   type: Phaser.AUTO,
-  width: GAME_WIDTH,
-  height: GAME_HEIGHT,
+  // Rendered at RENDER_SCALE × the design size; each scene's camera zooms back (src/ui/hiDpi.ts).
+  width: GAME_WIDTH * RENDER_SCALE,
+  height: GAME_HEIGHT * RENDER_SCALE,
   backgroundColor: '#fdf6e3',
   scale: {
     mode: Phaser.Scale.FIT,
@@ -32,3 +34,5 @@ new Phaser.Game({
   },
   scene: [BootScene, MenuScene, LevelSelectScene, GameScene, ResultScene, CardsScene, SettingsScene],
 });
+
+if (debugEnabled()) (window as unknown as { __funyGame?: Phaser.Game }).__funyGame = game;
