@@ -620,6 +620,12 @@ export function clayImage(scene: Phaser.Scene, x: number, y: number, tex: ClayTe
   return scene.add.image(x, y, tex.key).setOrigin(tex.originX, tex.originY).setScale(1 / S);
 }
 
+/** Local offsets of the three stars of a star row (`size` = one star's box): 1.15·size pitch, centre raised 8 %. */
+export function starSlots(size: number): { x: number; y: number }[] {
+  const step = size * 1.15;
+  return [0, 1, 2].map(i => ({ x: (i - 1) * step, y: i === 1 ? -size * 0.08 : 0 }));
+}
+
 /** Ball radii in use: number balls and expression balls (= collision radii). */
 const BALL_RADII = [NUMBER_RADIUS, EXPR_RADIUS];
 

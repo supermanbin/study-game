@@ -33,15 +33,17 @@ function burst(
   count: number,
   lifespan: number,
   cfg: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig,
+  minY = QUESTION_AREA_BOTTOM,
+  depth = FX_DEPTH,
 ): void {
-  const em = scene.add.particles(Math.max(0, x), Math.max(QUESTION_AREA_BOTTOM, y), tex.key, {
+  const em = scene.add.particles(Math.max(0, x), Math.max(minY, y), tex.key, {
     lifespan,
     angle: { min: 0, max: 360 },
     scale: { start: TEX, end: 0 },
     emitting: false,
     ...cfg,
   });
-  em.setDepth(FX_DEPTH);
+  em.setDepth(depth);
   em.explode(count);
   scene.time.delayedCall(lifespan + 60, () => em.destroy());
 }
@@ -54,6 +56,22 @@ export function explode(scene: Phaser.Scene, x: number, y: number, small = false
   for (const c of colors) {
     burst(scene, x, y, bakeShape(scene, 'particleStar', c), per, 900, { ...fly, scale: { start: 1.6 * TEX, end: 0 }, rotate: { start: 0, end: 360 } });
     burst(scene, x, y, bakeShape(scene, 'particleBall', c), per, 900, { ...fly, scale: { start: TEX, end: 0 } });
+  }
+}
+
+/** Confetti falls this long (= STEP_OWN_MS.confetti in celebration.ts, so the celebration's duration covers it). */
+export const CONFETTI_MS = 1000;
+
+/**
+ * Result-page confetti: 30 clay stars and dots in 3 ball colours fanning downward from (x, y), CONFETTI_MS.
+ * Not clamped to the play field (Result has no question band); `depth` places it under the buttons.
+ */
+export function confettiBurst(scene: Phaser.Scene, x: number, y: number, depth: number): void {
+  const colors = Phaser.Utils.Array.Shuffle([...BALL_COLORS]).slice(0, BURST_COLORS);
+  const fall = { speed: { min: 200, max: 520 }, angle: { min: 60, max: 120 }, gravityY: 500 };
+  for (const c of colors) {
+    burst(scene, x, y, bakeShape(scene, 'particleStar', c), 5, CONFETTI_MS, { ...fall, scale: { start: 1.4 * TEX, end: 0.3 * TEX }, rotate: { start: 0, end: 360 } }, 0, depth);
+    burst(scene, x, y, bakeShape(scene, 'particleBall', c), 5, CONFETTI_MS, { ...fall, scale: { start: 1.4 * TEX, end: 0.3 * TEX } }, 0, depth);
   }
 }
 

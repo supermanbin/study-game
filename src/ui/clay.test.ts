@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { clayKey, clayParams, contrastRatio, labelStyleFor, shade } from './clay';
+import { clayKey, clayParams, contrastRatio, labelStyleFor, shade, starSlots } from './clay';
 import { BALL_COLORS, CLAY } from './palette';
 
 const cssToNum = (css: string): number => parseInt(css.replace('#', ''), 16);
@@ -67,5 +67,21 @@ describe('labelStyleFor (Review Focus 1)', () => {
 describe('clayKey', () => {
   it('joins kind and parts, colours in hex', () => {
     expect(clayKey('ball', 0xff8a6b, 42, 2.5)).toBe('clay:ball:ff8a6b:42:2.5');
+  });
+});
+
+describe('starSlots', () => {
+  it('three slots on a 1.15·size pitch, centre raised by 8 %', () => {
+    const slots = starSlots(100);
+    expect(slots).toHaveLength(3);
+    const want = [
+      { x: -115, y: 0 },
+      { x: 0, y: -8 },
+      { x: 115, y: 0 },
+    ];
+    want.forEach((w, i) => {
+      expect(slots[i].x).toBeCloseTo(w.x, 6);
+      expect(slots[i].y).toBeCloseTo(w.y, 6);
+    });
   });
 });

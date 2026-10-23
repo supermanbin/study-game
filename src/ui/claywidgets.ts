@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { FONT_FAMILY, RENDER_SCALE } from '../config';
-import { bakeBackground, bakeBall, bakeRoundRect, bakeShape, clayImage, css, type ClayTex } from './clay';
+import { bakeBackground, bakeBall, bakeRoundRect, bakeShape, clayImage, css, starSlots, type ClayTex } from './clay';
 import { CLAY, TOGGLE } from './palette';
 
 // Shared clay UI pieces for the scenes. Every texture is cached by key (clay.ts), so rebuilding a scene allocates
@@ -47,12 +47,8 @@ export function bakeStars(scene: Phaser.Scene, size: number): { on: ClayTex; off
 
 /** Three stars, `lit` of them raised yellow, the rest inset faded. Centred on (x, y); `size` = one star's box. */
 export function clayStars(scene: Phaser.Scene, x: number, y: number, lit: 0 | 1 | 2 | 3, size: number): Phaser.GameObjects.Container {
-  const step = size * 1.15;
   const tex = bakeStars(scene, size);
-  const items = [0, 1, 2].map(i => {
-    const on = i < lit;
-    return clayImage(scene, (i - 1) * step, i === 1 ? -size * 0.08 : 0, on ? tex.on : tex.off);
-  });
+  const items = starSlots(size).map((p, i) => clayImage(scene, p.x, p.y, i < lit ? tex.on : tex.off));
   return scene.add.container(x, y, items);
 }
 

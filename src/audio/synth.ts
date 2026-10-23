@@ -1,4 +1,4 @@
-export type SfxName = 'correct' | 'wrong' | 'bump' | 'explode' | 'tick' | 'bossHit' | 'item' | 'peg';
+export type SfxName = 'correct' | 'wrong' | 'bump' | 'explode' | 'tick' | 'bossHit' | 'item' | 'peg' | 'pass';
 
 interface Tone {
   freq: number;
@@ -24,6 +24,13 @@ const SFX_TONES: Record<Exclude<SfxName, 'explode' | 'peg' | 'bump'>, Tone[]> = 
     { freq: 523, at: 0, dur: 0.1, type: 'sine' },
     { freq: 659, at: 0.08, dur: 0.1, type: 'sine' },
     { freq: 784, at: 0.16, dur: 0.18, type: 'sine' },
+  ],
+  // Result-page fanfare: rising C major arpeggio, ~0.5 s.
+  pass: [
+    { freq: 523, at: 0, dur: 0.12, type: 'sine' },
+    { freq: 659, at: 0.1, dur: 0.12, type: 'sine' },
+    { freq: 784, at: 0.2, dur: 0.12, type: 'sine' },
+    { freq: 1047, at: 0.3, dur: 0.22, type: 'sine' },
   ],
 };
 
