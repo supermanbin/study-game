@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>物理小样（试玩用，非正式代码）</title>
+  <style>
+    body { margin: 0; background: #1d2440; font-family: "PingFang SC", "Microsoft YaHei", sans-serif; color: #fff; }
+    #wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 10px; }
+    #game canvas { border-radius: 16px; box-shadow: 0 8px 30px rgba(0,0,0,.4); max-width: 96vw; height: auto !important; }
+    #panel { display: flex; flex-wrap: wrap; gap: 18px; align-items: center; background: #2b3560; padding: 10px 18px; border-radius: 12px; font-size: 14px; }
+    #panel label { display: flex; align-items: center; gap: 6px; }
+    #panel output { min-width: 34px; display: inline-block; color: #ffd166; }
+    .tip { opacity: .75; font-size: 13px; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="game"></div>
+    <div id="panel">
+      <label>重力 <input id="gravity" type="range" min="0.3" max="2" step="0.1" value="1"><output id="gravityV">1</output></label>
+      <label>弹性 <input id="bounce" type="range" min="0.2" max="0.95" step="0.05" value="0.75"><output id="bounceV">0.75</output></label>
+      <label>空气阻力 <input id="air" type="range" min="0" max="0.04" step="0.002" value="0.004"><output id="airV">0.004</output></label>
+      <label><input id="pegs" type="checkbox" checked> 弹珠钉</label>
+      <label>出场方式
+        <select id="launch">
+          <option value="toss" selected>从两侧抛进来</option>
+          <option value="drop">从上方掉下来</option>
+        </select>
+      </label>
+      <span class="tip">改了参数后，下一题生效。点对的球会炸开并冲开周围的球。</span>
+    </div>
+  </div>
+  <script type="module" src="./physics.ts"></script>
+</body>
+</html>
