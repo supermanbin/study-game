@@ -17,6 +17,10 @@ export interface DebugState {
   pileCount?: number;
   /** True while the next question waits (miss reveal or post-correct fade). */
   nextQuestionPending?: boolean;
+  /** True during the level-end hold (final effects playing, Result not started yet). */
+  levelEnding?: boolean;
+  /** Result scene: true from create() until the entrance celebration has finished. */
+  celebrating?: boolean;
   /** Balls in the world: body radius, clay shell geometry, shell / stripe angles (Review Focus 3). */
   balls?: { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number }[];
   stars?: number;

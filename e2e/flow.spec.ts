@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
-type S = { scene: string; stars?: number; litCards?: number; settings?: { music: boolean; voice: boolean; sfx: boolean } };
+type S = { scene: string; stars?: number; celebrating?: boolean; litCards?: number; settings?: { music: boolean; voice: boolean; sfx: boolean } };
 type Dbg = { answerCorrect(): void; missCurrent(): void; press(l: string): void; state(): S };
 declare global {
   interface Window {
@@ -33,6 +33,9 @@ test('menu to level select to result to persistence', async ({ page }) => {
   for (let i = 0; i < 20; i++) await page.evaluate(() => window.__funyDebug.answerCorrect());
   await expect.poll(async () => (await state(page)).scene).toBe('Result');
   expect((await state(page)).stars).toBe(3);
+  // The entrance celebration runs from create() and ends on its own within CELEBRATION_MAX_MS (2.5 s).
+  expect((await state(page)).celebrating).toBe(true);
+  await expect.poll(async () => (await state(page)).celebrating, { timeout: 4000 }).toBe(false);
 
   // Replay level 1 and fail it: the stale 下一关 handler must not survive on the failed Result.
   await press(page, '再玩一次');
