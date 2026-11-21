@@ -4,6 +4,7 @@ import type { Layout } from '../layout/game';
 import type { ProgressData, Settings } from '../core/progress';
 import type { ProgressStore } from '../core/store';
 import { pressButton } from '../ui/Button';
+import { applyPendingLayout } from '../layout/apply';
 
 export interface DebugState {
   scene: string;
@@ -22,6 +23,8 @@ export interface DebugState {
   nextQuestionPending?: boolean;
   /** True during the level-end hold (final effects playing, Result not started yet). */
   levelEnding?: boolean;
+  /** Game: the pause panel carries the 'turn the phone back' line (the window shape no longer matches the layout). */
+  rotateHint?: boolean;
   /** Result scene: true from create() until the entrance celebration has finished. */
   celebrating?: boolean;
   /**
@@ -88,6 +91,9 @@ export function installDebug(game: Phaser.Game): void {
     doubleClickCorrect: () => active()?.debugDoubleClickCorrect?.(),
     clickResolvedOption: () => active()?.debugClickResolved?.(),
     startLevel: (id: LevelId) => {
+      // Like every scene change (startScene): a layout pending since a rotation takes effect now.
+      const from = game.scene.getScenes(true)[0];
+      if (from) applyPendingLayout(game, from);
       for (const s of game.scene.getScenes(true)) if (s.scene.key !== 'Game') game.scene.stop(s.scene.key);
       game.scene.start('Game', { levelId: id });
     },

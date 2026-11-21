@@ -11,6 +11,7 @@ import { BALL_COLORS, CLAY } from '../ui/palette';
 import { getLayout, getProgress, title } from '../ui/theme';
 import { applyHiDpi } from '../ui/hiDpi';
 import { cardGrid, cardsScreen } from '../layout/screens';
+import { startScene } from '../layout/apply';
 
 /** Card corner radius (the size comes from cardGrid). */
 const CARD_R = 16;
@@ -60,7 +61,7 @@ export class CardsScene extends Phaser.Scene implements DebuggableScene {
       this.add.text(x, y, koujue(f), { fontFamily: FONT_FAMILY, fontSize: `${grid.fontSize}px`, fontStyle: 'bold', ...style }).setOrigin(0.5);
     }
     this.shown = grid.cards.length;
-    createButton(this, scr.back.x, scr.back.y, '返回', () => this.scene.start('Menu'), CARDS_BACK);
+    createButton(this, scr.back.x, scr.back.y, '返回', () => startScene(this, 'Menu'), CARDS_BACK);
   }
 
   debugState(): Partial<DebugState> {

@@ -13,6 +13,7 @@ import { BALL_COLORS, CLAY } from '../ui/palette';
 import { clayImage, css, starSlots } from '../ui/clay';
 import { applyHiDpi } from '../ui/hiDpi';
 import { resultScreen, type ResultScreen } from '../layout/screens';
+import { startScene } from '../layout/apply';
 
 const REASONS = { time: '时间到啦', pile: '地面堆满啦', notEnough: '差一点点，加油' } as const;
 
@@ -90,12 +91,12 @@ export class ResultScene extends Phaser.Scene implements DebuggableScene {
     };
 
     const labels: { label: string; go: () => void; opts: ButtonOpts }[] = [
-      { label: '再玩一次', go: () => this.scene.start('Game', { levelId: r.levelId }), opts: RESULT_BUTTONS.retry },
+      { label: '再玩一次', go: () => startScene(this, 'Game', { levelId: r.levelId }), opts: RESULT_BUTTONS.retry },
     ];
     if (r.passed && r.levelId < 6) {
-      labels.push({ label: '下一关', go: () => this.scene.start('Game', { levelId: (r.levelId + 1) as LevelId }), opts: RESULT_BUTTONS.next });
+      labels.push({ label: '下一关', go: () => startScene(this, 'Game', { levelId: (r.levelId + 1) as LevelId }), opts: RESULT_BUTTONS.next });
     }
-    labels.push({ label: '选关', go: () => this.scene.start('LevelSelect'), opts: RESULT_BUTTONS.select });
+    labels.push({ label: '选关', go: () => startScene(this, 'LevelSelect'), opts: RESULT_BUTTONS.select });
     // Landscape: left to right in this order; portrait stacks top to bottom with 下一关 first.
     const ordered = L.kind === 'portrait' && labels.length === 3 ? [labels[1], labels[0], labels[2]] : labels;
     const spots = scr.buttonsAt(ordered.length as 2 | 3);

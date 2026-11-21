@@ -7,6 +7,7 @@ import { getLayout, getProgress, title } from '../ui/theme';
 import type { LayoutKind } from '../core/types';
 import { levelSelectScreen } from '../layout/screens';
 import { applyHiDpi } from '../ui/hiDpi';
+import { startScene } from '../layout/apply';
 
 /** Star box size under each tile. */
 export const LEVEL_STAR_SIZE = 30;
@@ -43,10 +44,10 @@ export class LevelSelectScene extends Phaser.Scene {
       const { x, y } = s.tiles[i];
       const locked = lv.id > p.unlockedLevel;
       const stars = p.levels[lv.id]?.bestStars ?? 0;
-      createButton(this, x, y, `第${lv.id}关`, () => this.scene.start('Game', { levelId: lv.id }), levelTileOpts(lv, i, locked, layout.kind));
+      createButton(this, x, y, `第${lv.id}关`, () => startScene(this, 'Game', { levelId: lv.id }), levelTileOpts(lv, i, locked, layout.kind));
       clayStars(this, x, y + s.starsDy, stars, LEVEL_STAR_SIZE);
       if (locked) clayLock(this, x + s.lock.dx, y + s.lock.dy, 38);
     });
-    createButton(this, s.back.x, s.back.y, '返回', () => this.scene.start('Menu'), LEVEL_SELECT_BACK);
+    createButton(this, s.back.x, s.back.y, '返回', () => startScene(this, 'Menu'), LEVEL_SELECT_BACK);
   }
 }

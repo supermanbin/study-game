@@ -8,6 +8,7 @@ import { css } from '../ui/clay';
 import { getAudio, getLayout, getProgress, getStore, title } from '../ui/theme';
 import { settingsScreen } from '../layout/screens';
 import { applyHiDpi } from '../ui/hiDpi';
+import { startScene } from '../layout/apply';
 
 const ROWS: { key: keyof Settings; label: string }[] = [
   { key: 'music', label: '音乐' },
@@ -38,7 +39,7 @@ export class SettingsScene extends Phaser.Scene {
         .text(r.state.x, r.state.y, on ? '开' : '关', { fontFamily: FONT_FAMILY, fontSize: `${s.stateSize}px`, color: css(CLAY.ink2), fontStyle: 'bold' })
         .setOrigin(0.5);
     });
-    createButton(this, s.back.x, s.back.y, '返回', () => this.scene.start('Menu'), SETTINGS_BACK);
+    createButton(this, s.back.x, s.back.y, '返回', () => startScene(this, 'Menu'), SETTINGS_BACK);
   }
 
   private toggle(key: keyof Settings): void {

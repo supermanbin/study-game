@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { RENDER_SCALE } from './config';
 import { debugEnabled } from './game/debug';
+import { installLayoutWatcher } from './layout/apply';
 import { layoutFor } from './layout/game';
 import { designSize } from './layout/select';
 import { BootScene } from './scenes/BootScene';
@@ -10,6 +11,7 @@ import { MenuScene } from './scenes/MenuScene';
 import { LevelSelectScene } from './scenes/LevelSelectScene';
 import { CardsScene } from './scenes/CardsScene';
 import { SettingsScene } from './scenes/SettingsScene';
+import { bakeLayout } from './scenes/prebake';
 import { mountTuningPanel } from './game/TuningPanel';
 import { MAX_FRAME_DELTA_MS } from './game/tuning';
 import { BG } from './ui/theme';
@@ -47,5 +49,8 @@ const game = new Phaser.Game({
   },
   scene: [BootScene, MenuScene, LevelSelectScene, GameScene, ResultScene, CardsScene, SettingsScene],
 });
+
+// Rotating the phone (or reshaping the window) switches the layout between scenes.
+installLayoutWatcher(game, bakeLayout);
 
 if (debugEnabled()) (window as unknown as { __funyGame?: Phaser.Game }).__funyGame = game;

@@ -8,6 +8,7 @@ import { LocalStorageProgressStore, safeLocalStorage } from '../core/store';
 import { bakeLayout } from './prebake';
 import { applyHiDpi } from '../ui/hiDpi';
 import { BG, INK, getLayout } from '../ui/theme';
+import { startScene } from '../layout/apply';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -50,6 +51,6 @@ export class BootScene extends Phaser.Scene {
     const store = new LocalStorageProgressStore(safeLocalStorage());
     registry.set('store', store);
     registry.set('progress', await store.load());
-    this.scene.start('Menu');
+    startScene(this, 'Menu');
   }
 }

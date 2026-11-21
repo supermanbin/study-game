@@ -39,6 +39,7 @@ import {
 import { applyHiDpi } from '../ui/hiDpi';
 import { clayBackground } from '../ui/claywidgets';
 import { getLayout } from '../ui/theme';
+import { LAYOUT_MISMATCH_EVENT, startScene } from '../layout/apply';
 
 /** After a correct answer: the other balls fade at this point, the next question starts after the second. */
 const RESOLVED_VANISH_MS = 700;
@@ -80,6 +81,8 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   private pegsEnabled = false;
   /** Option-option contacts since the last update(); support passes from grounded balls through these. */
   private contacts: [OptionBody, OptionBody][] = [];
+  /** The pause panel carries the 'rotate the phone back' line (the window no longer matches the layout). */
+  private rotateHint = false;
 
   constructor() {
     super('Game');
@@ -96,6 +99,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.endHold = undefined;
     this.pegs = undefined;
     this.contacts = [];
+    this.rotateHint = false;
   }
 
   private get progress(): ProgressData {
@@ -283,12 +287,33 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     kb.on('keydown-TWO', () => this.useItem('magnifier'));
 
     const autoPause = () => this.setPaused(true);
+    const onMismatch = (mismatch: boolean) => this.onLayoutMismatch(mismatch);
     this.game.events.on(Phaser.Core.Events.BLUR, autoPause);
     this.game.events.on(Phaser.Core.Events.HIDDEN, autoPause);
+    this.game.events.on(LAYOUT_MISMATCH_EVENT, onMismatch);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off(Phaser.Core.Events.BLUR, autoPause);
       this.game.events.off(Phaser.Core.Events.HIDDEN, autoPause);
+      this.game.events.off(LAYOUT_MISMATCH_EVENT, onMismatch);
     });
+  }
+
+  /**
+   * The window was turned away from this level's layout (true) or back (false). The layout stays as it is: the
+   * game pauses with a hint to turn the phone back, and only the child's 继续游戏 resumes it. During the level-end
+   * hold (won / lost) nothing happens.
+   */
+  private onLayoutMismatch(mismatch: boolean): void {
+    if (!mismatch) {
+      this.rotateHint = false;
+      this.hud.setRotateHint(null);
+      return;
+    }
+    const st = this.session.status;
+    if (this.leaving || (st !== 'playing' && st !== 'paused')) return;
+    this.rotateHint = true;
+    this.hud.setRotateHint(this.layout.kind === 'portrait' ? '把手机竖过来，再点继续吧' : '把手机横过来，再点继续吧');
+    this.setPaused(true);
   }
 
   // ---- questions ----
@@ -526,7 +551,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.leaving = true;
     this.matter.world.pause();
     await (this.registry.get('store') as ProgressStore).save(this.progress);
-    this.scene.start('LevelSelect');
+    startScene(this, 'LevelSelect');
   }
 
   /**
@@ -559,7 +584,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.emitEvent({ type: 'end', result });
     this.progress = applyLevelResult(this.progress, result, Date.now());
     await (this.registry.get('store') as ProgressStore).save(this.progress);
-    this.scene.start('Result', { result });
+    startScene(this, 'Result', { result });
   }
 
   private emitEvent(e: SessionEvent): void {
@@ -580,6 +605,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       pileCount: this.pileOptions().length,
       nextQuestionPending: !!this.pendingStart,
       levelEnding: !!this.endHold && !this.leaving,
+      rotateHint: this.rotateHint,
       prompt: this.hud.promptInfo(),
       balls: this.options.filter(o => o.body).map(o => o.debugInfo()),
       // bossHp / bossMode exist only on boss levels (3 and 6).
