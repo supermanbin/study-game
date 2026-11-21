@@ -1,3 +1,4 @@
+import { currentAudioPath } from '../audio/mobileAudio';
 import { safeLocalStorage } from '../core/store';
 import {
   DEFAULT_TUNING,
@@ -28,8 +29,10 @@ export function mountTuningPanel(): void {
   style.textContent = `
     body { height: calc(100% - ${PANEL_HEIGHT_PX}px) !important; }
     #tuning-panel { position: fixed; left: 0; right: 0; bottom: 0; height: ${PANEL_HEIGHT_PX}px; box-sizing: border-box;
-      display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; justify-content: center; padding: 6px 14px;
+      display: flex; flex-wrap: nowrap; overflow-x: auto; white-space: nowrap; gap: 6px 18px; align-items: center; padding: 6px 14px;
       background: rgba(43, 53, 96, 0.85); color: #fff; font: 14px "PingFang SC", "Microsoft YaHei", sans-serif; z-index: 10; }
+    #tuning-panel > * { flex: 0 0 auto; }
+    #tuning-panel::before, #tuning-panel::after { content: ''; margin: auto; }
     #tuning-panel label { display: flex; align-items: center; gap: 6px; }
     #tuning-panel output { min-width: 40px; color: #ffd166; }
   `;
@@ -113,6 +116,11 @@ export function mountTuningPanel(): void {
   tip.style.opacity = '0.75';
   tip.textContent = '改了参数后，下一题生效。';
   panel.appendChild(tip);
+
+  const audio = document.createElement('span');
+  audio.id = 'audio-path';
+  audio.textContent = `音频: ${currentAudioPath()}`;
+  panel.appendChild(audio);
 
   refreshers.forEach(r => r());
   document.body.appendChild(panel);

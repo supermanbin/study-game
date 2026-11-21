@@ -10,6 +10,7 @@ import { NUMBER_RADIUS } from '../game/tuning';
 import { applyHiDpi } from '../ui/hiDpi';
 import { menuScreen } from '../layout/screens';
 import { startScene } from '../layout/apply';
+import { requestFullscreenOnTouch } from '../ui/fullscreen';
 
 /** Menu buttons (exported for the Boot pre-bake). */
 export const MENU_BUTTONS = {
@@ -40,7 +41,10 @@ export class MenuScene extends Phaser.Scene {
     this.add
       .text(cx, m.subtitle.y, '× 接住答案，点亮口诀卡 ×', { fontFamily: FONT_FAMILY, fontSize: `${m.subtitle.size}px`, color: css(CLAY.ink2) })
       .setOrigin(0.5);
-    createButton(this, m.start.x, m.start.y, '开始游戏', () => startScene(this, 'LevelSelect'), MENU_BUTTONS.start);
+    createButton(this, m.start.x, m.start.y, '开始游戏', () => {
+        requestFullscreenOnTouch();
+        startScene(this, 'LevelSelect');
+      }, MENU_BUTTONS.start);
     createButton(this, m.cards.x, m.cards.y, '口诀卡册', () => startScene(this, 'Cards'), MENU_BUTTONS.cards);
     createButton(this, m.settings.x, m.settings.y, '设置', () => startScene(this, 'Settings'), MENU_BUTTONS.settings);
     // Installed here (idempotent), not in Boot: `__funyDebug` existing implies Boot has finished.

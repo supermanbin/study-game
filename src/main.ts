@@ -15,7 +15,10 @@ import { bakeLayout } from './scenes/prebake';
 import { mountTuningPanel } from './game/TuningPanel';
 import { MAX_FRAME_DELTA_MS } from './game/tuning';
 import { BG } from './ui/theme';
+import { setupMobileAudio } from './audio/mobileAudio';
 
+// Before any audio exists, so iOS plays through the mute switch (and before the panel reports the path).
+setupMobileAudio();
 mountTuningPanel();
 
 /** The layout applied for this page load (registry key `layout`, read through getLayout). */

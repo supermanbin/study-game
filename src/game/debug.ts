@@ -4,10 +4,13 @@ import type { Layout } from '../layout/game';
 import type { ProgressData, Settings } from '../core/progress';
 import type { ProgressStore } from '../core/store';
 import { pressButton } from '../ui/Button';
+import { currentAudioPath, type AudioPath } from '../audio/mobileAudio';
 import { applyPendingLayout } from '../layout/apply';
 
 export interface DebugState {
   scene: string;
+  /** How iOS silent-switch audio was set up: 'audioSession', 'silentLoop' or 'none'. */
+  audioPath: AudioPath;
   /** The applied layout (registry `layout`). */
   layout: { kind: LayoutKind; width: number; height: number };
   questionIndex?: number;
@@ -112,7 +115,7 @@ export function installDebug(game: Phaser.Game): void {
       const settings = (game.registry.get('progress') as ProgressData | undefined)?.settings;
       const clayBake = game.registry.get('clayBake') as DebugState['clayBake'];
       const { kind, width, height } = game.registry.get('layout') as Layout;
-      return { scene: s?.scene.key ?? 'none', layout: { kind, width, height }, settings, clayBake, ...(s?.debugState?.() ?? {}) };
+      return { scene: s?.scene.key ?? 'none', audioPath: currentAudioPath(), layout: { kind, width, height }, settings, clayBake, ...(s?.debugState?.() ?? {}) };
     },
   };
 }
