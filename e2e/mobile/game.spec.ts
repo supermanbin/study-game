@@ -19,6 +19,7 @@ test('canvas renders at the screen pixel density', async ({ page }) => {
 });
 
 test('a real touch on the correct ball scores', async ({ page }) => {
+  test.setTimeout(60_000); // tapCorrectBall waits for the ball to come to rest
   const errors: string[] = [];
   await startLevel(page, 1, errors);
   expect(await tapCorrectBall(page)).toBe(true);

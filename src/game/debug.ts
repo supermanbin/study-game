@@ -24,8 +24,11 @@ export interface DebugState {
   levelEnding?: boolean;
   /** Result scene: true from create() until the entrance celebration has finished. */
   celebrating?: boolean;
-  /** Balls in the world: body radius, clay shell geometry, shell / stripe angles (Review Focus 3). */
-  balls?: { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number; correct: boolean; clickable: boolean }[];
+  /**
+   * Balls in the world: body radius, clay shell geometry, shell / stripe angles (Review Focus 3); `restMs` is the
+   * continuous resting time (a rest-based miss needs REST_MISS_MS of it on every correct ball).
+   */
+  balls?: { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number; correct: boolean; clickable: boolean; restMs: number }[];
   /** The question prompt text and its rendered width (design px). */
   prompt?: { text: string; width: number };
   stars?: number;

@@ -44,32 +44,37 @@ export async function tap(page: Page, x: number, y: number): Promise<void> {
   else await page.mouse.click(x, y);
 }
 
-type SupportBall = { x: number; y: number; correct: boolean; clickable: boolean };
+/** Aim only at a ball this early in its rest: a rest-based miss needs 1500 ms (REST_MISS_MS) of it. */
+const TAP_MAX_REST_MS = 800;
 
 /**
- * Touch-taps (or clicks) a correct, clickable ball below the ceiling, up to 15 tries; true once the score
- * rises within 600 ms of a tap.
+ * Touch-taps (or clicks) a correct, clickable, resting ball; true once the score rises within 600 ms of a tap.
+ *
+ * Only a resting ball can be aimed at: in headless Chromium the game runs at about 15 fps, so a tap lands a few
+ * hundred ms after the state it was aimed from, and a falling ball has moved well past its radius by then. A
+ * resting ball stays put, and with `restMs < TAP_MAX_REST_MS` a rest-based miss cannot beat the tap. The sample
+ * and its page position come from one evaluate, so the tap follows it by a single round trip.
+ * At that frame rate a level-1 ball takes up to about 20 s to come to rest: callers need a 60 s test timeout.
  */
 export async function tapCorrectBall(page: Page): Promise<boolean> {
-  for (let attempt = 0; attempt < 15; attempt++) {
-    // Balls spawn one by one, so the correct one may not exist yet: wait for it (up to 8 s) before tapping.
-    let s = await state(page);
-    let ball: SupportBall | undefined;
-    for (const until = Date.now() + 8000; Date.now() < until; ) {
-      s = await state(page);
-      const ceilingY = s.layout.kind === 'portrait' ? 226 : 140;
-      ball = ((s.balls ?? []) as SupportBall[]).find(b => b.correct && b.clickable && b.y > ceilingY);
-      if (ball) break;
-      await page.waitForTimeout(100);
+  for (const until = Date.now() + 40_000; Date.now() < until; ) {
+    const aim = await page.evaluate(maxRest => {
+      const s = (window as any).__funyDebug.state();
+      const ball = ((s.balls ?? []) as { x: number; y: number; correct: boolean; clickable: boolean; restMs: number }[]).find(
+        b => b.correct && b.clickable && b.restMs > 0 && b.restMs < maxRest,
+      );
+      if (!ball) return null;
+      const r = document.querySelector('canvas')!.getBoundingClientRect();
+      return { score: (s.score ?? 0) as number, x: r.left + (ball.x / s.layout.width) * r.width, y: r.top + (ball.y / s.layout.height) * r.height };
+    }, TAP_MAX_REST_MS);
+    if (!aim) {
+      await page.waitForTimeout(50);
+      continue;
     }
-    if (!ball) continue;
-    const p = await toPage(page, ball.x, ball.y);
-    await tap(page, p.x, p.y);
-    const deadline = Date.now() + 600;
-    while (Date.now() < deadline) {
-      const n = await state(page);
+    await tap(page, aim.x, aim.y);
+    for (const deadline = Date.now() + 600; Date.now() < deadline; ) {
       // Score only: a questionIndex change alone can be a rest-based miss that raced the tap (score stays put).
-      if ((n.score ?? 0) > (s.score ?? 0)) return true;
+      if (((await state(page)).score ?? 0) > aim.score) return true;
       await page.waitForTimeout(50);
     }
   }

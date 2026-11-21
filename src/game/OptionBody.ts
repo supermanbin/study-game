@@ -207,8 +207,11 @@ export class OptionBody {
       .setScale(sx * TEX_SCALE, sy * TEX_SCALE);
   }
 
-  /** Debug/e2e: body radius, shell geometry (displayed, so divide by `lookScaleX` during pop-in/squash) and the two layers' angles. */
-  debugInfo(): { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number; correct: boolean; clickable: boolean } {
+  /**
+   * Debug/e2e: body radius, shell geometry (displayed, so divide by `lookScaleX` during pop-in/squash), the two
+   * layers' angles and the continuous resting time (game ms).
+   */
+  debugInfo(): { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number; correct: boolean; clickable: boolean; restMs: number } {
     return {
       radius: this.body?.circleRadius ?? this.radius,
       shellW: this.shell.displayWidth,
@@ -222,6 +225,7 @@ export class OptionBody {
       stripeAngle: this.container.angle,
       correct: this.correct,
       clickable: this.clickable,
+      restMs: this.rest.ms,
     };
   }
 
