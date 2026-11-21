@@ -3,7 +3,8 @@ import { FONT_FAMILY, GAME_WIDTH, RENDER_SCALE } from '../config';
 import { bakeBall, bakeStripe, clayImage, labelStyleFor } from '../ui/clay';
 import { BALL_COLORS, CLAY } from '../ui/palette';
 import { RestTimer, StuckTimer } from './motion';
-import { clearOfPegsX } from './Pegs';
+import { landscapeLayout } from '../layout/game';
+import { clearOfPegsX } from '../layout/pegs';
 import type { PhysicsTuning } from './physicsTuning';
 import {
   BALL_DENSITY,
@@ -317,13 +318,13 @@ export class OptionBody {
     if (t.launch === 'toss') {
       const left = this.launchIndex % 2 === 0;
       y = Math.max(TOSS_Y, minY);
-      x = clearOfPegsX(left ? TOSS_LEFT_X : TOSS_RIGHT_X, y, this.radius, this.radius, GAME_WIDTH - this.radius);
+      x = clearOfPegsX(left ? TOSS_LEFT_X : TOSS_RIGHT_X, y, this.radius, this.radius, GAME_WIDTH - this.radius, landscapeLayout().field);
       vx = (left ? 1 : -1) * Phaser.Math.FloatBetween(5, 11);
       vy = Phaser.Math.FloatBetween(-7, -2);
     } else {
       y = minY;
       // Keep the ball horizontally clear of the top peg row so it never spawns overlapping a peg.
-      x = clearOfPegsX(this.dropX, y, this.radius, SPAWN_X_MIN, SPAWN_X_MAX);
+      x = clearOfPegsX(this.dropX, y, this.radius, SPAWN_X_MIN, SPAWN_X_MAX, landscapeLayout().field);
       vx = Phaser.Math.FloatBetween(-2, 2);
       vy = 0;
     }

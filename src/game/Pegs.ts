@@ -1,8 +1,10 @@
 import type Phaser from 'phaser';
-import { GAME_WIDTH, RENDER_SCALE } from '../config';
+import { RENDER_SCALE } from '../config';
+import { landscapeLayout } from '../layout/game';
+import { pegPositions } from '../layout/pegs';
 import { bakeShape, clayImage, type ClayTex } from '../ui/clay';
 import { CLAY } from '../ui/palette';
-import { PEG_RADIUS, PEG_ROWS_Y, PEG_SPACING } from './tuning';
+import { PEG_RADIUS } from './tuning';
 
 const PEG_LABEL = 'peg';
 const PEG_DEPTH = 9;
@@ -10,36 +12,6 @@ const PEG_DEPTH = 9;
 const TEX_SCALE = 1 / RENDER_SCALE;
 const FLASH_SCALE = 1.6;
 const BRIGHTEN_MS = 60;
-
-/** Peg centres: staggered rows of 6 / 5 pegs, PEG_SPACING apart, centred across the width. */
-export function pegPositions(width = GAME_WIDTH): { x: number; y: number }[] {
-  const out: { x: number; y: number }[] = [];
-  PEG_ROWS_Y.forEach((y, r) => {
-    const n = r % 2 === 0 ? 6 : 5;
-    const x0 = (width - (n - 1) * PEG_SPACING) / 2;
-    for (let i = 0; i < n; i++) out.push({ x: x0 + i * PEG_SPACING, y });
-  });
-  return out;
-}
-
-/**
- * Returns an x near `x` where a ball of radius `r` centred at height `y` does not overlap any row-0 peg,
- * staying inside [min, max]. Shifts away from the offending peg, or the other way when that leaves the range.
- */
-export function clearOfPegsX(x: number, y: number, r: number, min: number, max: number, width = GAME_WIDTH): number {
-  const minD = r + PEG_RADIUS + 2;
-  const dy = Math.abs(PEG_ROWS_Y[0] - y);
-  let out = Math.min(max, Math.max(min, x));
-  if (dy >= minD) return out;
-  const needDx = Math.sqrt(minD * minD - dy * dy) + 1;
-  for (const p of pegPositions(width)) {
-    if (p.y !== PEG_ROWS_Y[0] || Math.abs(out - p.x) >= needDx) continue;
-    const away = out >= p.x ? p.x + needDx : p.x - needDx;
-    const other = out >= p.x ? p.x - needDx : p.x + needDx;
-    out = away >= min && away <= max ? away : other;
-  }
-  return out;
-}
 
 /**
  * Static bouncy pegs (pachinko style) between the question band and the pile: a clay peg image that is the Matter
@@ -64,7 +36,7 @@ export class Pegs {
     if (!enabled) return;
     const tex = (this.tex = bakeShape(scene, 'peg')); // both pre-baked in Boot (bakeAll)
     this.lit = bakeShape(scene, 'peg', CLAY.pegFlash);
-    for (const { x, y } of pegPositions()) {
+    for (const { x, y } of pegPositions(landscapeLayout().field)) {
       const arc = clayImage(scene, x, y, tex).setDepth(PEG_DEPTH);
       scene.matter.add.gameObject(arc, {
         isStatic: true,
