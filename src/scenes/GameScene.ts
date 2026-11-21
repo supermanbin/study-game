@@ -300,8 +300,9 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
 
   /**
    * The window was turned away from this level's layout (true) or back (false). The layout stays as it is: the
-   * game pauses with a hint to turn the phone back, and only the child's 继续游戏 resumes it. During the level-end
-   * hold (won / lost) nothing happens.
+   * game pauses with a hint to turn the phone back, and only the child's 继续游戏 resumes it. Only the turn away
+   * pauses: later resizes while still turned (toolbar show/hide, window drags) leave a child who chose to go on
+   * playing. During the level-end hold (won / lost) nothing happens.
    */
   private onLayoutMismatch(mismatch: boolean): void {
     if (!mismatch) {
@@ -310,7 +311,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       return;
     }
     const st = this.session.status;
-    if (this.leaving || (st !== 'playing' && st !== 'paused')) return;
+    if (this.rotateHint || this.leaving || (st !== 'playing' && st !== 'paused')) return;
     this.rotateHint = true;
     this.hud.setRotateHint(this.layout.kind === 'portrait' ? '把手机竖过来，再点继续吧' : '把手机横过来，再点继续吧');
     this.setPaused(true);

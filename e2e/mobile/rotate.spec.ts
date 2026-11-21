@@ -88,6 +88,27 @@ test('rotate during the level-end hold', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
+test('a stray resize while still rotated does not re-pause', async ({ page }) => {
+  const errors: string[] = [];
+  await startLevel(page, 1, errors);
+  await rotate(page);
+  await expect
+    .poll(async () => {
+      const s = await state(page);
+      return { status: s.status, rotateHint: s.rotateHint };
+    })
+    .toEqual({ status: 'paused', rotateHint: true });
+  // The child goes on in the turned phone; a toolbar show/hide or window drag must not pause again.
+  await press(page, '继续游戏');
+  await expect.poll(async () => (await state(page)).status).toBe('playing');
+  await page.setViewportSize({ width: 900, height: 400 });
+  await page.waitForTimeout(700);
+  const s = await state(page);
+  expect(s.status).toBe('playing');
+  expect(s.rotateHint).toBe(true);
+  expect(errors).toEqual([]);
+});
+
 test('flip-flop inside the settle window does nothing', async ({ page }) => {
   await waitMenu(page);
   // A switch to landscape always bakes new textures, so an unchanged count proves none happened.
