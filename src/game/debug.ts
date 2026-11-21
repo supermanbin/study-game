@@ -30,6 +30,10 @@ export interface DebugState {
   prompt?: { text: string; width: number };
   stars?: number;
   litCards?: number;
+  /** Cards on screen (portrait: the current page's). */
+  cardsShown?: number;
+  /** Portrait only: the visible 口诀 page. */
+  cardsPage?: 0 | 1;
   settings?: Settings;
   /** Boot's clay pre-bake: elapsed ms and the number of `clay:` textures right after it. */
   clayBake?: { ms: number; textures: number };

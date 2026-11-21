@@ -50,4 +50,27 @@ await balls();
 await page.waitForTimeout(500);
 await shot('game-l3');
 
+// Result: 3 stars, then failed.
+await startLevel(1);
+await dbg('(async()=>{for(let i=0;i<20;i++) window.__funyDebug.answerCorrect()})()');
+await page.waitForFunction(() => window.__funyDebug.state().scene === 'Result');
+await page.waitForFunction(() => window.__funyDebug.state().celebrating === false, null, { timeout: 15000 });
+await shot('result-pass');
+await dbg('window.__funyDebug.press("选关")');
+await page.waitForFunction(() => window.__funyDebug.state().scene === 'LevelSelect');
+await startLevel(2);
+await dbg('(async()=>{for(let i=0;i<20;i++) window.__funyDebug.missCurrent()})()');
+await page.waitForFunction(() => window.__funyDebug.state().scene === 'Result');
+await page.waitForFunction(() => window.__funyDebug.state().celebrating === false, null, { timeout: 15000 });
+await shot('result-fail');
+await dbg('window.__funyDebug.press("选关")');
+await page.waitForFunction(() => window.__funyDebug.state().scene === 'LevelSelect');
+await toScene('返回', 'Menu');
+await toScene('口诀卡册', 'Cards');
+await shot('cards-1');
+await dbg('window.__funyDebug.press("6～9")');
+await page.waitForFunction(() => window.__funyDebug.state().cardsPage === 1);
+await page.waitForTimeout(400);
+await shot('cards-2');
+
 await browser.close();

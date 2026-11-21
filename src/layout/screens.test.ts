@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { levelSelectScreen, menuScreen, settingsScreen, type ScreenSize } from './screens';
+import { koujue } from '../core/facts';
+import { ALL_FACTS } from '../core/facts';
+import { cardGrid, cardPages, cardsScreen, levelSelectScreen, menuScreen, resultScreen, settingsScreen, type ScreenSize } from './screens';
 
 const land: ScreenSize = { kind: 'landscape', width: 1280, height: 720 };
 const port = (height: number): ScreenSize => ({ kind: 'portrait', width: 720, height });
@@ -109,6 +111,78 @@ describe('portrait screens', () => {
         for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) expect(overlap(rects[i], rects[j])).toBe(false);
         expect(s.title.y).toBeLessThan(rects[0].y - 36);
         expect(Math.min(s.title.size, s.stateSize)).toBeGreaterThanOrEqual(22);
+      });
+    });
+  }
+});
+
+describe('cards and result', () => {
+  it('cardPages splits 15 + 30 and covers all 45 once', () => {
+    const [a, b] = cardPages();
+    expect(a).toHaveLength(15);
+    expect(b).toHaveLength(30);
+    expect(a.every(f => f.b <= 5) && b.every(f => f.b >= 6)).toBe(true);
+    expect([...a, ...b].map(f => `${f.a}x${f.b}`).sort()).toEqual(ALL_FACTS.map(f => `${f.a}x${f.b}`).sort());
+  });
+
+  it('landscape cardGrid keeps today\'s positions', () => {
+    const g = cardGrid(land, 0);
+    expect(g.fontSize).toBe(20);
+    expect(g.cards).toHaveLength(45);
+    const at = (a: number, b: number) => g.cards.find(c => c.fact.a === a && c.fact.b === b)!;
+    expect(at(1, 1)).toMatchObject({ x: 640 - 59 * 9 + 59, y: 105, w: 112, h: 54 });
+    expect(at(1, 9)).toMatchObject({ x: 640 - 59 * 9 + 59 + 8 * 118, y: 105 });
+    expect(at(9, 9)).toMatchObject({ x: 640 - 59 * 9 + 59 + 8 * 118, y: 105 + 8 * 58 });
+    expect(cardGrid(land, 1)).toEqual(g);
+    expect(cardsScreen(land)).toEqual({ title: { x: 640, y: 40, size: 40 }, tabs: [], back: { x: 1130, y: 665 } });
+  });
+
+  it('landscape resultScreen equals today', () => {
+    const r = resultScreen(land);
+    expect(r.panel).toEqual({ x: 640, y: 282, w: 780, h: 510 });
+    expect(r.starsY).toBe(255);
+    expect(r.buttonsAt(3)).toEqual([{ x: 310, y: 600 }, { x: 640, y: 600 }, { x: 970, y: 600 }]);
+    expect(r.buttonsAt(2)).toEqual([{ x: 475, y: 600 }, { x: 805, y: 600 }]);
+    expect(r.confetti).toEqual({ y: 120, dx: 300 });
+  });
+
+  for (const H of [1280, 1558, 1560]) {
+    describe(`portrait H = ${H}`, () => {
+      const L = port(H);
+      for (const page of [0, 1] as const) {
+        it(`cards page ${page}`, () => {
+          const g = cardGrid(L, page);
+          const tabs = cardsScreen(L).tabs;
+          expect(g.cards).toHaveLength(page === 0 ? 15 : 30);
+          expect(new Set(g.cards.map(c => c.fact.b)).size).toBe(page === 0 ? 5 : 4);
+          expect(new Set(g.cards.map(c => c.fact.a)).size).toBe(page === 0 ? 5 : 9);
+          expect(g.fontSize).toBeGreaterThanOrEqual(28);
+          const rects = g.cards.map(c => ({ x: c.x, y: c.y, w: c.w, h: c.h }));
+          for (const c of g.cards) {
+            expect(c.w).toBeGreaterThanOrEqual(koujue(c.fact).length * 28 + 16);
+            expect(c.y - c.h / 2).toBeGreaterThan(tabs[0].y + 32);
+          }
+          for (const r of rects) expect(within(r, 720, H)).toBe(true);
+          for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) expect(overlap(rects[i], rects[j])).toBe(false);
+          expect(Math.max(...rects.map(r => r.y + r.h / 2))).toBeLessThan(cardsScreen(L).back.y - 36);
+        });
+      }
+
+      it('result fits', () => {
+        const r = resultScreen(L);
+        expect(within(r.panel, 720, H)).toBe(true);
+        for (const n of [2, 3] as const) {
+          const rects = r.buttonsAt(n).map(p => rect(p, [290, 84]));
+          for (const b of rects) {
+            expect(within(b, 720, H)).toBe(true);
+            expect(b.y - 42).toBeGreaterThan(r.panel.y + r.panel.h / 2);
+          }
+          for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) expect(overlap(rects[i], rects[j])).toBe(false);
+        }
+        const ys = [r.title.y, r.reason.y, r.starsY, r.counts.correct.y, r.counts.score.y, r.counts.bonus.y];
+        expect([...ys].sort((a, b) => a - b)).toEqual(ys);
+        for (const y of ys) expect(Math.abs(y - r.panel.y)).toBeLessThan(r.panel.h / 2);
+        expect(Math.min(r.title.size, r.reason.size, ...Object.values(r.counts).map(c => c.size))).toBeGreaterThanOrEqual(22);
       });
     });
   }

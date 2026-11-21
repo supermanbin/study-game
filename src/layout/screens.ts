@@ -1,4 +1,5 @@
-import type { LayoutKind } from '../core/types';
+import { ALL_FACTS, koujue } from '../core/facts';
+import type { Fact, LayoutKind } from '../core/types';
 
 /** The part of a Layout the menu-side screens read. */
 export interface ScreenSize {
@@ -93,5 +94,106 @@ export function settingsScreen(L: ScreenSize): SettingsScreen {
     }),
     stateSize: 22,
     back: landscape ? { x: 640, y: 620 } : { x: L.width / 2, y: L.height - 128 },
+  };
+}
+
+export interface Box { x: number; y: number; w: number; h: number }
+export type CountLineKey = 'correct' | 'score' | 'bonus';
+
+export interface ResultScreen {
+  panel: Box;
+  title: TextSpot & { x: number };
+  reason: TextSpot & { x: number };
+  starsY: number;
+  counts: Record<CountLineKey, TextSpot & { x: number }>;
+  /** Button centres top to bottom for n buttons (portrait) or left to right (landscape). */
+  buttonsAt(n: 2 | 3): Pt[];
+  confetti: { y: number; dx: number };
+}
+
+export function resultScreen(L: ScreenSize): ResultScreen {
+  const cx = L.width / 2;
+  if (L.kind === 'landscape') {
+    return {
+      panel: { x: 640, y: 282, w: 780, h: 510 },
+      title: { x: cx, y: 90, size: 72 },
+      reason: { x: cx, y: 160, size: 32 },
+      starsY: 255,
+      counts: {
+        correct: { x: cx, y: 350, size: 40 },
+        score: { x: cx, y: 405, size: 36 },
+        bonus: { x: cx, y: 455, size: 36 },
+      },
+      buttonsAt: n => Array.from({ length: n }, (_, k) => ({ x: cx + (k - (n - 1) / 2) * 330, y: 600 })),
+      confetti: { y: 120, dx: 300 },
+    };
+  }
+  const H = L.height;
+  const top = R(0.06 * H);
+  return {
+    panel: { x: cx, y: top + 310, w: 640, h: 620 },
+    title: { x: cx, y: top + 80, size: 72 },
+    reason: { x: cx, y: top + 150, size: 32 },
+    starsY: top + 270,
+    counts: {
+      correct: { x: cx, y: top + 400, size: 40 },
+      score: { x: cx, y: top + 465, size: 36 },
+      bonus: { x: cx, y: top + 530, size: 36 },
+    },
+    buttonsAt: n => Array.from({ length: n }, (_, k) => ({ x: cx, y: H - R(0.08 * H) - (n - 1 - k) * 110 })),
+    confetti: { y: top + 40, dx: 200 },
+  };
+}
+
+/** Portrait pages: b <= 5 and b >= 6, each in ALL_FACTS order. */
+export function cardPages(): [Fact[], Fact[]] {
+  return [ALL_FACTS.filter(f => f.b <= 5), ALL_FACTS.filter(f => f.b >= 6)];
+}
+
+export interface CardCell { fact: Fact; x: number; y: number; w: number; h: number }
+export interface CardGrid { fontSize: number; cards: CardCell[] }
+
+const CARD_PX = 28;
+const CARD_PAD = 16;
+const CARD_GAP = 6;
+
+export function cardGrid(L: ScreenSize, page: 0 | 1): CardGrid {
+  if (L.kind === 'landscape') {
+    const x0 = 640 - (118 * 9) / 2 + 118 / 2;
+    return {
+      fontSize: 20,
+      cards: ALL_FACTS.map(fact => ({ fact, x: x0 + (fact.b - 1) * 118, y: 105 + (fact.a - 1) * 58, w: 112, h: 54 })),
+    };
+  }
+  const facts = cardPages()[page];
+  const cols = [...new Set(facts.map(f => f.b))].sort((a, b) => a - b);
+  const width = new Map<number, number>();
+  for (const b of cols) width.set(b, Math.max(...facts.filter(f => f.b === b).map(f => koujue(f).length)) * CARD_PX + CARD_PAD);
+  const total = cols.reduce((t, b) => t + width.get(b)!, 0) + CARD_GAP * (cols.length - 1);
+  const left = new Map<number, number>();
+  let x = L.width / 2 - total / 2;
+  for (const b of cols) {
+    left.set(b, x + width.get(b)! / 2);
+    x += width.get(b)! + CARD_GAP;
+  }
+  const y0 = R(0.2 * L.height) + 32;
+  return {
+    fontSize: CARD_PX,
+    cards: facts.map(fact => ({ fact, x: left.get(fact.b)!, y: y0 + (fact.a - 1) * 72, w: width.get(fact.b)!, h: 64 })),
+  };
+}
+
+export interface CardsScreen {
+  title: TextSpot & { x: number };
+  tabs: Pt[];
+  back: Pt;
+}
+
+export function cardsScreen(L: ScreenSize): CardsScreen {
+  if (L.kind === 'landscape') return { title: { x: 640, y: 40, size: 40 }, tabs: [], back: { x: 1130, y: 665 } };
+  return {
+    title: { x: L.width / 2, y: R(0.06 * L.height), size: 40 },
+    tabs: [{ x: 250, y: R(0.13 * L.height) }, { x: 470, y: R(0.13 * L.height) }],
+    back: { x: L.width / 2, y: L.height - 100 },
   };
 }

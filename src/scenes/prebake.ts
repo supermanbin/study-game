@@ -6,10 +6,11 @@ import type { Layout } from '../layout/game';
 import { bakeButton } from '../ui/Button';
 import { bakeAll } from '../ui/clay';
 import { bakePanel, bakeStars, bakeToggle } from '../ui/claywidgets';
-import { CARDS_BACK, bakeCard } from './CardsScene';
+import { CARDS_BACK, CARD_TAB_ACTIVE, CARD_TAB_IDLE, bakeCard } from './CardsScene';
+import { cardGrid } from '../layout/screens';
 import { LEVEL_SELECT_BACK, LEVEL_STAR_SIZE, levelTileOpts } from './LevelSelectScene';
 import { MENU_BUTTONS } from './MenuScene';
-import { RESULT_BUTTONS, RESULT_PANEL, RESULT_STAR_SIZE } from './ResultScene';
+import { RESULT_BUTTONS, RESULT_PANEL, RESULT_PANEL_PORTRAIT, RESULT_STAR_SIZE } from './ResultScene';
 import { SETTINGS_BACK, SETTINGS_ROW_BUTTON } from './SettingsScene';
 
 /**
@@ -35,15 +36,27 @@ export function prebakeScenes(scene: Phaser.Scene, layout: Layout): void {
     bakeButton(scene, levelTileOpts(lv, i, true, layout.kind));
   });
   bakeStars(scene, LEVEL_STAR_SIZE);
-  for (const f of ALL_FACTS) {
-    bakeCard(scene, f, true);
-    bakeCard(scene, f, false);
+  if (layout.kind === 'portrait') {
+    for (const page of [0, 1] as const) {
+      for (const c of cardGrid(layout, page).cards) {
+        bakeCard(scene, c.fact, true, c.w, c.h);
+        bakeCard(scene, c.fact, false, c.w, c.h);
+      }
+    }
+    bakeButton(scene, CARD_TAB_ACTIVE);
+    bakeButton(scene, CARD_TAB_IDLE);
+  } else {
+    for (const f of ALL_FACTS) {
+      bakeCard(scene, f, true, 112, 54);
+      bakeCard(scene, f, false, 112, 54);
+    }
   }
   bakeButton(scene, SETTINGS_ROW_BUTTON);
   bakeToggle(scene, true);
   bakeToggle(scene, false);
   for (const opts of [CARDS_BACK, LEVEL_SELECT_BACK, SETTINGS_BACK]) bakeButton(scene, opts);
-  bakePanel(scene, RESULT_PANEL.w, RESULT_PANEL.h);
+  const panel = layout.kind === 'portrait' ? RESULT_PANEL_PORTRAIT : RESULT_PANEL;
+  bakePanel(scene, panel.w, panel.h);
   bakeStars(scene, RESULT_STAR_SIZE);
   for (const opts of Object.values(RESULT_BUTTONS)) bakeButton(scene, opts);
 }
