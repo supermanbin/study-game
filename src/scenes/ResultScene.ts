@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { FONT_FAMILY, GAME_WIDTH, RENDER_SCALE } from '../config';
+import { FONT_FAMILY, RENDER_SCALE } from '../config';
 import type { LevelResult } from '../core/session';
 import type { LevelId } from '../core/types';
 import { QUESTIONS_PER_LEVEL } from '../core/levels';
@@ -7,7 +7,7 @@ import { type CelebrationStep, type CountLine, celebrationDurationMs, celebratio
 import type { DebuggableScene, DebugState } from '../game/debug';
 import { confettiBurst, shockwave } from '../game/effects';
 import { createButton, type ButtonOpts } from '../ui/Button';
-import { INK, getAudio } from '../ui/theme';
+import { INK, getAudio, getLayout } from '../ui/theme';
 import { bakeStars, clayBackground, clayPanel } from '../ui/claywidgets';
 import { BALL_COLORS, CLAY } from '../ui/palette';
 import { clayImage, css, starSlots } from '../ui/clay';
@@ -62,7 +62,7 @@ export class ResultScene extends Phaser.Scene implements DebuggableScene {
   create(): void {
     applyHiDpi(this);
     const r = this.result;
-    const cx = GAME_WIDTH / 2;
+    const cx = getLayout(this).width / 2;
     const font = { fontFamily: FONT_FAMILY, color: INK };
     clayBackground(this);
     clayPanel(this, cx, 282, RESULT_PANEL.w, RESULT_PANEL.h);
@@ -177,7 +177,7 @@ export class ResultScene extends Phaser.Scene implements DebuggableScene {
         break;
       }
       case 'confetti': {
-        const cx = GAME_WIDTH / 2;
+        const cx = getLayout(this).width / 2;
         confettiBurst(this, cx - CONFETTI_DX, CONFETTI_Y, CONFETTI_DEPTH);
         confettiBurst(this, cx + CONFETTI_DX, CONFETTI_Y, CONFETTI_DEPTH);
         break;

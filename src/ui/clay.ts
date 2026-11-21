@@ -421,16 +421,19 @@ export function bakeRoundRectPair(scene: Phaser.Scene, w: number, h: number, r: 
   return { raised, pressed };
 }
 
-/** Full-screen cream radial (design 1280×720, displayed 1:1: a smooth gradient needs no extra resolution). */
-export function bakeBackground(scene: Phaser.Scene): string {
-  const key = clayKey('bg', 1280, 720);
+/**
+ * Full-screen cream radial, w×h design px (displayed 1:1: a smooth gradient needs no extra resolution).
+ * At 1280×720 the gradient runs from (640, 330, r 40) to (640, 360, r 800).
+ */
+export function bakeBackground(scene: Phaser.Scene, w: number, h: number): string {
+  const key = clayKey('bg', w, h);
   if (scene.textures.exists(key)) return key;
-  const { canvas, ctx } = newCanvas(1280, 720);
-  const g = ctx.createRadialGradient(640, 330, 40, 640, 360, 800);
+  const { canvas, ctx } = newCanvas(w, h);
+  const g = ctx.createRadialGradient(w / 2, (h * 330) / 720, 40, w / 2, h / 2, 0.625 * Math.max(w, h));
   g.addColorStop(0, css(CLAY.bgInner));
   g.addColorStop(1, css(CLAY.bgOuter));
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 1280, 720);
+  ctx.fillRect(0, 0, w, h);
   scene.textures.addCanvas(key, canvas);
   return key;
 }
@@ -629,10 +632,10 @@ export function starSlots(size: number): { x: number; y: number }[] {
 /** Ball radii in use: number balls and expression balls (= collision radii). */
 const BALL_RADII = [NUMBER_RADIUS, EXPR_RADIUS];
 
-/** Pre-bakes every fixed-size clay texture (call from Boot). Returns the elapsed ms. */
-export function bakeAll(scene: Phaser.Scene): number {
+/** Pre-bakes every fixed-size clay texture, the background at `size` (call from Boot). Returns the elapsed ms. */
+export function bakeAll(scene: Phaser.Scene, size: { width: number; height: number }): number {
   const t0 = performance.now();
-  bakeBackground(scene);
+  bakeBackground(scene, size.width, size.height);
   for (const r of BALL_RADII) {
     for (const c of BALL_COLORS) bakeBall(scene, c, r);
     bakeBall(scene, CLAY.faded, r, true);

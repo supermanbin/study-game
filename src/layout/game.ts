@@ -1,4 +1,5 @@
 import type { ItemKind } from '../core/session';
+import type { LayoutKind } from '../core/types';
 import type { DesignSize } from './select';
 
 export interface Box { x: number; y: number; w: number; h: number }
@@ -35,7 +36,7 @@ export interface HudLayout {
 }
 
 export interface Layout {
-  kind: 'landscape' | 'portrait';
+  kind: LayoutKind;
   width: number;
   height: number;
   field: FieldLayout;

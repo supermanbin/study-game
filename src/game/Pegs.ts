@@ -1,6 +1,6 @@
 import type Phaser from 'phaser';
 import { RENDER_SCALE } from '../config';
-import { landscapeLayout } from '../layout/game';
+import type { FieldLayout } from '../layout/game';
 import { pegPositions } from '../layout/pegs';
 import { bakeShape, clayImage, type ClayTex } from '../ui/clay';
 import { CLAY } from '../ui/palette';
@@ -31,12 +31,12 @@ export class Pegs {
     return (body.parent ?? body).label === PEG_LABEL;
   }
 
-  constructor(scene: Phaser.Scene, enabled: boolean) {
+  constructor(scene: Phaser.Scene, enabled: boolean, field: FieldLayout) {
     this.scene = scene;
     if (!enabled) return;
     const tex = (this.tex = bakeShape(scene, 'peg')); // both pre-baked in Boot (bakeAll)
     this.lit = bakeShape(scene, 'peg', CLAY.pegFlash);
-    for (const { x, y } of pegPositions(landscapeLayout().field)) {
+    for (const { x, y } of pegPositions(field)) {
       const arc = clayImage(scene, x, y, tex).setDepth(PEG_DEPTH);
       scene.matter.add.gameObject(arc, {
         isStatic: true,

@@ -1,18 +1,12 @@
 import type { LevelId } from '../core/types';
 
-/** Gameplay layout and physics constants (design resolution 1280×720). Tune by playtest. */
-export const GROUND_Y = 700;
-/** Just under the lowest peg row; the pile below it holds about 2 layers of balls. */
-export const WARNING_LINE_Y = 520;
-export const QUESTION_AREA_BOTTOM = 140;
+/**
+ * Gameplay physics and timing constants (design px). Field and HUD geometry live in the layout
+ * (`src/layout/game.ts`). Tune by playtest.
+ */
 export const PILE_OVERFLOW_MS = 2000;
 
 export const SPAWN_STAGGER_MS = 220;
-/** Drop launch: random x in this range, just below the question band. */
-export const SPAWN_X_MIN = 120;
-export const SPAWN_X_MAX = 1160;
-/** Toss launch: balls are thrown in just below the question band. */
-export const TOSS_Y = QUESTION_AREA_BOTTOM + 50;
 
 /** Number balls. */
 export const NUMBER_RADIUS = 42;
@@ -24,12 +18,10 @@ export const BALL_DENSITY = 0.002;
 export const HEAVY_DENSITY = 0.006;
 
 /**
- * Peg rows (staggered 6/5 per row, PEG_SPACING apart). The diagonal gap between neighbouring rows' pegs
- * (hypot(PEG_SPACING / 2, 80) ≈ 126) must exceed 2 × (EXPR_RADIUS + PEG_RADIUS) = 122 so every ball passes.
+ * Peg radius. Peg positions come from the layout (`pegPositions`); the distance between any two pegs must
+ * exceed 2 × (EXPR_RADIUS + PEG_RADIUS) so every ball passes (pinned in src/layout/pegs.test.ts).
  */
-export const PEG_ROWS_Y = [240, 320, 400, 480];
 export const PEG_RADIUS = 9;
-export const PEG_SPACING = 195;
 
 /**
  * Per-level gravity factor. Effective gravity = tuning.gravity × LEVEL_GRAVITY_FACTOR[level] ×

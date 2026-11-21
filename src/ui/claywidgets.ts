@@ -2,13 +2,15 @@ import Phaser from 'phaser';
 import { FONT_FAMILY, RENDER_SCALE } from '../config';
 import { bakeBackground, bakeBall, bakeRoundRect, bakeShape, clayImage, css, starSlots, type ClayTex } from './clay';
 import { CLAY, TOGGLE } from './palette';
+import { getLayout } from './theme';
 
 // Shared clay UI pieces for the scenes. Every texture is cached by key (clay.ts), so rebuilding a scene allocates
 // nothing new.
 
-/** Full-screen cream radial behind everything (depth -100). */
+/** Full-screen cream radial behind everything (depth -100), at the applied layout's size (pre-baked by bakeAll). */
 export function clayBackground(scene: Phaser.Scene): Phaser.GameObjects.Image {
-  return scene.add.image(0, 0, bakeBackground(scene)).setOrigin(0, 0).setDepth(-100);
+  const { width, height } = getLayout(scene);
+  return scene.add.image(0, 0, bakeBackground(scene, width, height)).setOrigin(0, 0).setDepth(-100);
 }
 
 /** Corner radius of a clay panel of height h (shared with pre-baking, so the cache keys match). */

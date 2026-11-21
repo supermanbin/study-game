@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, RENDER_SCALE } from './config';
+import { RENDER_SCALE } from './config';
 import { debugEnabled } from './game/debug';
+import { landscapeLayout } from './layout/game';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { ResultScene } from './scenes/ResultScene';
@@ -14,11 +15,14 @@ import { BG } from './ui/theme';
 
 mountTuningPanel();
 
+/** The layout applied for this page load (registry key `layout`, read through getLayout). */
+const initial = landscapeLayout();
+
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   // Rendered at RENDER_SCALE × the design size; each scene's camera zooms back (src/ui/hiDpi.ts).
-  width: GAME_WIDTH * RENDER_SCALE,
-  height: GAME_HEIGHT * RENDER_SCALE,
+  width: initial.width * RENDER_SCALE,
+  height: initial.height * RENDER_SCALE,
   // Palette page colour, so screen shake never shows a strip of another colour.
   backgroundColor: BG,
   scale: {
@@ -32,6 +36,12 @@ const game = new Phaser.Game({
       // Same cap as the session/game clock (MAX_FRAME_DELTA_MS in GameScene.update), so physics and the
       // countdown slow down together on slow frames.
       runner: { maxFrameTime: MAX_FRAME_DELTA_MS },
+    },
+  },
+  callbacks: {
+    // Before any scene exists, so every scene (Boot included) reads it with getLayout.
+    preBoot: g => {
+      g.registry.set('layout', initial);
     },
   },
   scene: [BootScene, MenuScene, LevelSelectScene, GameScene, ResultScene, CardsScene, SettingsScene],

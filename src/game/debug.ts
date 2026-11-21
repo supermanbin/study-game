@@ -1,11 +1,14 @@
 import type Phaser from 'phaser';
-import type { LevelId } from '../core/types';
+import type { LayoutKind, LevelId } from '../core/types';
+import type { Layout } from '../layout/game';
 import type { ProgressData, Settings } from '../core/progress';
 import type { ProgressStore } from '../core/store';
 import { pressButton } from '../ui/Button';
 
 export interface DebugState {
   scene: string;
+  /** The applied layout (registry `layout`). */
+  layout: { kind: LayoutKind; width: number; height: number };
   questionIndex?: number;
   score?: number;
   status?: string;
@@ -93,7 +96,8 @@ export function installDebug(game: Phaser.Game): void {
       const s = active();
       const settings = (game.registry.get('progress') as ProgressData | undefined)?.settings;
       const clayBake = game.registry.get('clayBake') as DebugState['clayBake'];
-      return { scene: s?.scene.key ?? 'none', settings, clayBake, ...(s?.debugState?.() ?? {}) };
+      const { kind, width, height } = game.registry.get('layout') as Layout;
+      return { scene: s?.scene.key ?? 'none', layout: { kind, width, height }, settings, clayBake, ...(s?.debugState?.() ?? {}) };
     },
   };
 }

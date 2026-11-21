@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { GAME_HEIGHT, GAME_WIDTH } from '../config';
 import type { AudioService } from '../audio/AudioService';
 import { getLevel } from '../core/levels';
 import { applyLevelResult, recordOutcome, type ProgressData } from '../core/progress';
@@ -8,6 +7,7 @@ import { mulberry32 } from '../core/rng';
 import { LevelSession, type ItemKind, type LevelResult } from '../core/session';
 import { safeLocalStorage, type ProgressStore } from '../core/store';
 import type { LevelId } from '../core/types';
+import type { Layout } from '../layout/game';
 import type { DebuggableScene, DebugState } from '../game/debug';
 import { Hud } from '../game/Hud';
 import { Boss } from '../game/Boss';
@@ -29,20 +29,16 @@ import { loadTuning, type PhysicsTuning } from '../game/physicsTuning';
 import { PileOverflowTracker } from '../game/pile';
 import {
   BOSS_DEFEAT_HOLD_MS,
-  GROUND_Y,
   LEVEL_END_HOLD_MS,
   LEVEL_GRAVITY_FACTOR,
   MAX_FRAME_DELTA_MS,
   MISS_REVEAL_MS,
   PILE_OVERFLOW_MS,
-  QUESTION_AREA_BOTTOM,
   SPAWN_STAGGER_MS,
-  SPAWN_X_MAX,
-  SPAWN_X_MIN,
-  WARNING_LINE_Y,
 } from '../game/tuning';
 import { applyHiDpi } from '../ui/hiDpi';
 import { clayBackground } from '../ui/claywidgets';
+import { getLayout } from '../ui/theme';
 
 /** After a correct answer: the other balls fade at this point, the next question starts after the second. */
 const RESOLVED_VANISH_MS = 700;
@@ -68,7 +64,9 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   private hud!: Hud;
   private options: OptionBody[] = [];
   private serial = 0;
-  private tracker = new PileOverflowTracker(WARNING_LINE_Y, PILE_OVERFLOW_MS);
+  /** The applied layout, read once in create() (it changes only between scenes). */
+  private layout!: Layout;
+  private tracker!: PileOverflowTracker;
   private leaving = false;
   private boss?: Boss;
   private voiceSeq = 0;
@@ -91,7 +89,6 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.levelId = data.levelId ?? 1;
     this.options = [];
     this.serial = 0;
-    this.tracker = new PileOverflowTracker(WARNING_LINE_Y, PILE_OVERFLOW_MS);
     this.leaving = false;
     this.boss = undefined;
     this.voiceSeq = 0;
@@ -120,6 +117,8 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
 
   create(): void {
     applyHiDpi(this);
+    this.layout = getLayout(this);
+    this.tracker = new PileOverflowTracker(this.layout.field.warningY, PILE_OVERFLOW_MS);
     this.noTime = location.search.includes('debug') && location.search.includes('notime');
     this.gameMs = 0;
     // Light cream, so the clay balls pop.
@@ -135,11 +134,10 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
         void (this.registry.get('store') as ProgressStore).save(this.progress).catch(() => undefined);
       },
     });
-    this.hud = new Hud(
-      this,
-      kind => this.useItem(kind),
-      () => this.setPaused(false),
-    );
+    this.hud = new Hud(this, this.layout, {
+      onItem: kind => this.useItem(kind),
+      onResume: () => this.setPaused(false),
+    });
     this.buildWorld();
     this.bindInput();
     this.setupFeedback();
@@ -188,12 +186,13 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   /** Escape respawn, stuck nudge and rest timing for every ball in the world. */
   private updateMotion(dt: number): void {
     const now = this.time.now;
+    const { width, groundY } = this.layout.field;
     const live = this.options.filter(o => o.body);
     // Support must be grounded: fresh each frame from ground contacts, then through this frame's contacts.
     const supported = groundedSet(this.contacts, live.filter(o => o.grounded(now)));
     for (const o of live) o.supported = supported.has(o);
     for (const o of live) {
-      if (outOfField(o.x, o.y, GAME_WIDTH, GROUND_Y)) {
+      if (outOfField(o.x, o.y, width, groundY)) {
         o.respawn(this.tuning);
         continue;
       }
@@ -215,13 +214,14 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   // ---- setup ----
 
   private buildWorld(): void {
-    this.matter.add.rectangle(GAME_WIDTH / 2, GROUND_Y + 50, GAME_WIDTH + 400, 100, { isStatic: true, label: 'ground' });
-    const wallH = GAME_HEIGHT + 1000;
-    this.matter.add.rectangle(-25, GAME_HEIGHT - wallH / 2, 50, wallH, { isStatic: true, label: 'wall' });
-    this.matter.add.rectangle(GAME_WIDTH + 25, GAME_HEIGHT - wallH / 2, 50, wallH, { isStatic: true, label: 'wall' });
+    const { width, height, groundY, ceilingY } = this.layout.field;
+    this.matter.add.rectangle(width / 2, groundY + 50, width + 400, 100, { isStatic: true, label: 'ground' });
+    const wallH = height + 1000;
+    this.matter.add.rectangle(-25, height - wallH / 2, 50, wallH, { isStatic: true, label: 'wall' });
+    this.matter.add.rectangle(width + 25, height - wallH / 2, 50, wallH, { isStatic: true, label: 'wall' });
     // Invisible ceiling: its bottom edge is the question band's bottom, so tossed balls bounce back.
-    this.matter.add.rectangle(GAME_WIDTH / 2, QUESTION_AREA_BOTTOM - 50, GAME_WIDTH + 400, 100, { isStatic: true, label: 'ceiling' });
-    this.pegs = new Pegs(this, this.tuning.pegs);
+    this.matter.add.rectangle(width / 2, ceilingY - 50, width + 400, 100, { isStatic: true, label: 'ceiling' });
+    this.pegs = new Pegs(this, this.tuning.pegs, this.layout.field);
     this.pegsEnabled = this.tuning.pegs;
 
     const onCollide = (e: Phaser.Physics.Matter.Events.CollisionStartEvent) => {
@@ -269,7 +269,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
 
   private bindInput(): void {
     this.input.on('pointerdown', (p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
-      if (p.worldY < QUESTION_AREA_BOTTOM || over.some(o => this.hud.swallowsClick(o))) return;
+      if (p.worldY < this.layout.field.ceilingY || over.some(o => this.hud.swallowsClick(o))) return;
       const hit = this.currentOptions().find(o => o.clickable && o.contains(p.worldX, p.worldY));
       if (hit) this.onOptionPointer(hit);
     });
@@ -309,25 +309,30 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.tuning = loadTuning(safeLocalStorage());
     if (this.tuning.pegs !== this.pegsEnabled) {
       this.pegs?.destroy();
-      this.pegs = new Pegs(this, this.tuning.pegs);
+      this.pegs = new Pegs(this, this.tuning.pegs, this.layout.field);
       this.pegsEnabled = this.tuning.pegs;
     }
     const tuning = this.tuning;
     const q = this.session.question;
     this.hud.setPrompt(q.prompt);
+    const field = this.layout.field;
     const n = q.options.length;
-    const slotW = (SPAWN_X_MAX - SPAWN_X_MIN) / n;
+    const slotW = (field.spawnXMax - field.spawnXMin) / n;
     const slots = Phaser.Utils.Array.Shuffle([...Array(n).keys()]);
     q.options.forEach((spec, k) => {
-      const x = SPAWN_X_MIN + slotW * (slots[k] + 0.5) + Phaser.Math.FloatBetween(-0.25, 0.25) * slotW;
-      const opt = new OptionBody(this, {
-        questionSerial: this.serial,
-        optionId: spec.id,
-        label: spec.label,
-        correct: spec.correct,
-        x,
-        colorIndex: this.serial + k,
-      });
+      const x = field.spawnXMin + slotW * (slots[k] + 0.5) + Phaser.Math.FloatBetween(-0.25, 0.25) * slotW;
+      const opt = new OptionBody(
+        this,
+        {
+          questionSerial: this.serial,
+          optionId: spec.id,
+          label: spec.label,
+          correct: spec.correct,
+          x,
+          colorIndex: this.serial + k,
+        },
+        field,
+      );
       this.options.push(opt);
       if (k === 0) opt.launch(tuning, k, x);
       else this.time.delayedCall(k * SPAWN_STAGGER_MS, () => opt.launch(tuning, k, x));
@@ -421,7 +426,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
 
   private setupFeedback(): void {
     if (this.session.level.boss) {
-      this.boss = new Boss(this, 1190, 92);
+      this.boss = new Boss(this, this.layout.hud.boss.x, this.layout.hud.boss.y);
       this.boss.setHp(this.session.bossHp());
     }
     this.events.off('session-event');

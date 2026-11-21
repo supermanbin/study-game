@@ -1,8 +1,8 @@
 import Phaser from 'phaser';
-import { FONT_FAMILY, GAME_WIDTH, RENDER_SCALE } from '../config';
+import { FONT_FAMILY, RENDER_SCALE } from '../config';
 import { installDebug } from '../game/debug';
 import { createButton, type ButtonOpts } from '../ui/Button';
-import { getAudio, getProgress, title } from '../ui/theme';
+import { getAudio, getLayout, getProgress, title } from '../ui/theme';
 import { bakeBall, clayImage, css } from '../ui/clay';
 import { clayBackground } from '../ui/claywidgets';
 import { BALL_COLORS, CLAY } from '../ui/palette';
@@ -25,7 +25,7 @@ export class MenuScene extends Phaser.Scene {
     applyHiDpi(this);
     clayBackground(this);
     getAudio(this).setMusic(getProgress(this).settings.music);
-    const cx = GAME_WIDTH / 2;
+    const cx = getLayout(this).width / 2;
     title(this, '九九乘法闯关', 170, 96);
     // Five decorative clay balls above the title, bobbing gently out of phase.
     BALL_COLORS.slice(0, 5).forEach((color, i) => {
