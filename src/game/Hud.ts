@@ -3,8 +3,9 @@ import { FONT_FAMILY } from '../config';
 import type { ItemKind } from '../core/session';
 import type { Layout } from '../layout/game';
 import { bakeRoundRect, bakeShape, clayImage, css } from '../ui/clay';
+import { bakeButton, createButton, type ButtonOpts } from '../ui/Button';
 import { clayPanel, clayPlaque, panelRadius, plaqueRadius } from '../ui/claywidgets';
-import { CLAY } from '../ui/palette';
+import { BALL_COLORS, CLAY } from '../ui/palette';
 
 const HUD_DEPTH = 100;
 const BAND_DEPTH = 50;
@@ -14,19 +15,36 @@ const GROUND_DEPTH = 1;
 /** HUD geometry (design px) comes from `layout.hud`; each size is baked once (Boot pre-bakes them via `prebakeHud`). */
 const ITEM_COLOR = 0xe6f1fb;
 const ITEM_INK = '#3c6a92';
-const PAUSE = { w: 760, h: 160 };
 const DOT_STEP = 36;
+
+export const PAUSE_RESUME_BUTTON: ButtonOpts = { width: 320, height: 88, fontSize: 40, color: CLAY.primary };
+export const PAUSE_EXIT_BUTTON: ButtonOpts = { width: 320, height: 72, fontSize: 32, color: BALL_COLORS[1] };
+/** The on-screen pause button: a plaque with the clay pause icon. */
+export const pauseButtonOpts = (layout: Layout): ButtonOpts => ({
+  width: layout.hud.pause.w,
+  height: layout.hud.pause.h,
+  color: CLAY.plaque,
+  icon: 'pause',
+});
+
+export interface HudCallbacks {
+  onItem(kind: ItemKind): void;
+  onPause(): void;
+  onResume(): void;
+  onExit(): void;
+}
 
 /** Floor texture (layout width × field.floorH): one key for both the pre-bake and the HUD. */
 const bakeFloor = (scene: Phaser.Scene, layout: Layout) => bakeRoundRect(scene, layout.width, layout.field.floorH, 20, CLAY.floor);
 
 /** Bakes every HUD texture of `layout` (call from Boot, so entering the game scene bakes nothing). */
 export function prebakeHud(scene: Phaser.Scene, layout: Layout): void {
-  const { band, score, combo, time, reveal, items } = layout.hud;
-  for (const b of [band, PAUSE]) bakeRoundRect(scene, b.w, b.h, panelRadius(b.h), CLAY.panel);
+  const { band, score, combo, time, reveal, items, pausePanel } = layout.hud;
+  for (const b of [band, pausePanel]) bakeRoundRect(scene, b.w, b.h, panelRadius(b.h), CLAY.panel);
   for (const b of [score, combo, time, reveal]) bakeRoundRect(scene, b.w, b.h, plaqueRadius(b.h), CLAY.plaque);
   bakeRoundRect(scene, items.w, items.h, plaqueRadius(items.h), ITEM_COLOR);
   bakeFloor(scene, layout);
+  for (const o of [PAUSE_RESUME_BUTTON, PAUSE_EXIT_BUTTON, pauseButtonOpts(layout)]) bakeButton(scene, o);
 }
 
 /** Prompt, score/combo, countdown, item buttons, warning line, floor, pause overlay, miss reveal. */
@@ -42,6 +60,9 @@ export class Hud {
   private readonly itemLabels: Record<ItemKind, Phaser.GameObjects.Text>;
   private readonly overlay: Phaser.GameObjects.Container;
   private readonly shade: Phaser.GameObjects.Rectangle;
+  private readonly pauseButton: Phaser.GameObjects.Container;
+  private readonly overlayButtons: Phaser.GameObjects.Container[];
+  private readonly rotateHint: Phaser.GameObjects.Text;
   private revealTimer?: Phaser.Time.TimerEvent;
   private lastSecond = -1;
   private readonly timePrefix: string;
@@ -51,11 +72,11 @@ export class Hud {
   constructor(
     private readonly scene: Phaser.Scene,
     layout: Layout,
-    { onItem, onResume }: { onItem: (kind: ItemKind) => void; onResume: () => void },
+    { onItem, onPause, onResume, onExit }: HudCallbacks,
   ) {
     const font = { fontFamily: FONT_FAMILY };
     const { width, height, field } = layout;
-    const { band, prompt, score, combo, time, items, reveal } = layout.hud;
+    const { band, prompt, score, combo, time, items, reveal, pause, pausePanel } = layout.hud;
     this.timePrefix = time.prefix;
     this.itemHint = items.keyHints ? { freeze: '1 ', magnifier: '2 ' } : { freeze: '', magnifier: '' };
     // The question band sits above the options so newly spawned ones emerge from under it.
@@ -111,16 +132,33 @@ export class Hud {
       .rectangle(width / 2, height / 2, width, height, CLAY.bgInner, 0.75)
       .setInteractive()
       .on('pointerdown', onResume);
-    const panel = clayPanel(scene, width / 2, height / 2, PAUSE.w, PAUSE.h);
-    const label = scene.add
-      .text(width / 2, height / 2, '暂停中 · 点一下或按空格继续', { ...font, fontSize: '46px', fontStyle: 'bold', color: css(CLAY.ink) })
-      .setOrigin(0.5);
-    this.overlay = scene.add.container(0, 0, [this.shade, panel, label]).setDepth(HUD_DEPTH + 10).setVisible(false);
+    const cx = width / 2;
+    const cy = height / 2;
+    const panel = clayPanel(scene, cx, cy, pausePanel.w, pausePanel.h);
+    const text = (dy: number, str: string, size: number, color: number) =>
+      scene.add.text(cx, cy + dy, str, { ...font, fontSize: `${size}px`, fontStyle: 'bold', color: css(color) }).setOrigin(0.5);
+    const title = text(-150, '暂停中', 52, CLAY.ink);
+    const resume = createButton(scene, cx, cy - 45, '继续游戏', onResume, PAUSE_RESUME_BUTTON);
+    const exit = createButton(scene, cx, cy + 60, '返回选关', onExit, PAUSE_EXIT_BUTTON);
+    const hint = text(130, pausePanel.hint, 24, CLAY.ink2);
+    this.rotateHint = text(180, '', 26, CLAY.accent).setVisible(false);
+    this.overlayButtons = [resume, exit];
+    this.overlay = scene.add
+      .container(0, 0, [this.shade, panel, title, resume, exit, hint, this.rotateHint])
+      .setDepth(HUD_DEPTH + 10)
+      .setVisible(false);
+
+    this.pauseButton = createButton(scene, pause.x, pause.y, '暂停', onPause, pauseButtonOpts(layout)).setDepth(HUD_DEPTH);
+  }
+
+  /** Extra line under the pause panel's hint (e.g. 'rotate the phone'); null hides it. */
+  setRotateHint(text: string | null): void {
+    this.rotateHint.setText(text ?? '').setVisible(text !== null);
   }
 
   /** HUD objects that swallow a click (item buttons, pause overlay): it must not also hit an option. */
   swallowsClick(obj: Phaser.GameObjects.GameObject): boolean {
-    return this.isItemButton(obj) || obj === this.shade;
+    return this.isItemButton(obj) || obj === this.shade || obj === this.pauseButton || this.overlayButtons.includes(obj as Phaser.GameObjects.Container);
   }
 
   isItemButton(obj: Phaser.GameObjects.GameObject): boolean {

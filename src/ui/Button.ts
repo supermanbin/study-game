@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { FONT_FAMILY } from '../config';
-import { bakeRoundRect, bakeRoundRectPair, clayImage, labelStyleFor, type ClayTex } from './clay';
+import { bakeRoundRect, bakeRoundRectPair, bakeShape, clayImage, labelStyleFor, type ClayShape, type ClayTex } from './clay';
 import { CLAY } from './palette';
 
 export interface ButtonOpts {
@@ -11,6 +11,8 @@ export interface ButtonOpts {
   color?: number;
   /** Extra lines under the label (e.g. level name), drawn inside the button. */
   subtitle?: string;
+  /** Shows this clay icon instead of the label text (the button still registers under `label`). */
+  icon?: ClayShape;
 }
 
 /** Pressed buttons sink this many design px. */
@@ -19,7 +21,7 @@ const PRESS_SINK = 3;
 /** Geometry and fill of a button with these options (shared by createButton and the Boot pre-bake). */
 function buttonLook(opts: ButtonOpts): { w: number; h: number; radius: number; fill: number; disabled: boolean } {
   const w = opts.width ?? 280;
-  const h = Math.max(64, opts.height ?? 72);
+  const h = opts.icon ? (opts.height ?? 44) : Math.max(64, opts.height ?? 72);
   const disabled = opts.disabled ?? false;
   const fill = disabled ? CLAY.faded : (opts.color ?? CLAY.primary);
   return { w, h, radius: Math.min(24, h / 3), fill, disabled };
@@ -55,10 +57,15 @@ export function createButton(
   const body = clayImage(scene, 0, 0, raised);
   // Disabled buttons are faded clay: labelStyleFor gives them the faded ink darkened to ≥ 3:1.
   const labelStyle = labelStyleFor(fill);
-  const text = scene.add
-    .text(0, opts.subtitle ? -32 : 0, label, { fontFamily: FONT_FAMILY, fontSize: `${opts.fontSize ?? 36}px`, fontStyle: 'bold', ...labelStyle })
-    .setOrigin(0.5);
-  const parts: [Phaser.GameObjects.Image | Phaser.GameObjects.Text, number][] = [[body, 0], [text, text.y]];
+  const parts: [Phaser.GameObjects.Image | Phaser.GameObjects.Text, number][] = [[body, 0]];
+  if (opts.icon) {
+    parts.push([clayImage(scene, 0, 0, bakeShape(scene, opts.icon)), 0]);
+  } else {
+    const text = scene.add
+      .text(0, opts.subtitle ? -32 : 0, label, { fontFamily: FONT_FAMILY, fontSize: `${opts.fontSize ?? 36}px`, fontStyle: 'bold', ...labelStyle })
+      .setOrigin(0.5);
+    parts.push([text, text.y]);
+  }
   if (opts.subtitle) {
     const sub = scene.add
       .text(0, 6, opts.subtitle, { fontFamily: FONT_FAMILY, fontSize: '20px', ...labelStyle, strokeThickness: Math.min(3, labelStyle.strokeThickness) })

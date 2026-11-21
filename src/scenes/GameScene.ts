@@ -136,7 +136,9 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     });
     this.hud = new Hud(this, this.layout, {
       onItem: kind => this.useItem(kind),
+      onPause: () => this.setPaused(true),
       onResume: () => this.setPaused(false),
+      onExit: () => void this.exitToLevelSelect(),
     });
     this.buildWorld();
     this.bindInput();

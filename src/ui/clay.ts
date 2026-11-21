@@ -440,7 +440,7 @@ export function bakeBackground(scene: Phaser.Scene, w: number, h: number): strin
 
 export type ClayShape =
   | 'star' | 'starOff' | 'lock' | 'monster' | 'monsterHurt' | 'chest' | 'peg' | 'dot' | 'hpOn' | 'hpOff'
-  | 'particleBall' | 'particleStar';
+  | 'particleBall' | 'particleStar' | 'pause';
 
 /** Design sizes of the fixed shapes (the box the shape fills; shadows are padding outside it). */
 export const SHAPE_SIZE: Record<ClayShape, { w: number; h: number }> = {
@@ -456,6 +456,7 @@ export const SHAPE_SIZE: Record<ClayShape, { w: number; h: number }> = {
   hpOff: { w: 12, h: 16 },
   particleBall: { w: 14, h: 14 },
   particleStar: { w: 20, h: 20 },
+  pause: { w: 22, h: 24 },
 };
 
 const DEFAULT_SHAPE_COLOR: Record<ClayShape, number> = {
@@ -471,6 +472,7 @@ const DEFAULT_SHAPE_COLOR: Record<ClayShape, number> = {
   hpOff: CLAY.hpOff,
   particleBall: BALL_COLORS[0],
   particleStar: BALL_COLORS[3],
+  pause: CLAY.ink2,
 };
 
 const EYE_INK = 0x4a3a6a;
@@ -548,6 +550,15 @@ export function bakeShape(scene: Phaser.Scene, kind: ClayShape, color?: number, 
       case 'dot':
       case 'particleBall':
         paintClay(ctx, c => circle(c, cx, cy, size / 2), col, size, { inset });
+        break;
+      case 'pause':
+        // Two rounded bars, 8 wide with a 6 gap.
+        paintClay(ctx, c => {
+          roundRectPath(c, ox, oy, 8, h, 4);
+          c.fill();
+          roundRectPath(c, ox + 14, oy, 8, h, 4);
+          c.fill();
+        }, col, size);
         break;
       case 'hpOn':
       case 'hpOff':
