@@ -165,6 +165,11 @@ export class Hud {
     return obj === this.itemButtons.freeze || obj === this.itemButtons.magnifier;
   }
 
+  /** Current prompt text and its rendered width (debug/e2e: must fit the band on one line). */
+  promptInfo(): { text: string; width: number } {
+    return { text: this.prompt.text, width: this.prompt.width };
+  }
+
   setPrompt(text: string): void {
     this.prompt.setText(text);
   }

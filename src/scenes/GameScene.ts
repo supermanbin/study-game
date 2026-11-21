@@ -580,6 +580,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       pileCount: this.pileOptions().length,
       nextQuestionPending: !!this.pendingStart,
       levelEnding: !!this.endHold && !this.leaving,
+      prompt: this.hud.promptInfo(),
       balls: this.options.filter(o => o.body).map(o => o.debugInfo()),
       // bossHp / bossMode exist only on boss levels (3 and 6).
       ...(s.level.boss ? { bossHp: s.bossHp(), bossMode: this.boss?.mode } : {}),

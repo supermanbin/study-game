@@ -43,3 +43,35 @@ export async function tap(page: Page, x: number, y: number): Promise<void> {
   if (test.info().project.use.hasTouch) await page.touchscreen.tap(x, y);
   else await page.mouse.click(x, y);
 }
+
+type SupportBall = { x: number; y: number; correct: boolean; clickable: boolean };
+
+/**
+ * Touch-taps (or clicks) a correct, clickable ball below the ceiling, up to 15 tries; true once the score
+ * rises within 600 ms of a tap.
+ */
+export async function tapCorrectBall(page: Page): Promise<boolean> {
+  for (let attempt = 0; attempt < 15; attempt++) {
+    // Balls spawn one by one, so the correct one may not exist yet: wait for it (up to 8 s) before tapping.
+    let s = await state(page);
+    let ball: SupportBall | undefined;
+    for (const until = Date.now() + 8000; Date.now() < until; ) {
+      s = await state(page);
+      const ceilingY = s.layout.kind === 'portrait' ? 226 : 140;
+      ball = ((s.balls ?? []) as SupportBall[]).find(b => b.correct && b.clickable && b.y > ceilingY);
+      if (ball) break;
+      await page.waitForTimeout(100);
+    }
+    if (!ball) continue;
+    const p = await toPage(page, ball.x, ball.y);
+    await tap(page, p.x, p.y);
+    const deadline = Date.now() + 600;
+    while (Date.now() < deadline) {
+      const n = await state(page);
+      // Score only: a questionIndex change alone can be a rest-based miss that raced the tap (score stays put).
+      if ((n.score ?? 0) > (s.score ?? 0)) return true;
+      await page.waitForTimeout(50);
+    }
+  }
+  return false;
+}

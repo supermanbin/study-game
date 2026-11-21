@@ -25,7 +25,9 @@ export interface DebugState {
   /** Result scene: true from create() until the entrance celebration has finished. */
   celebrating?: boolean;
   /** Balls in the world: body radius, clay shell geometry, shell / stripe angles (Review Focus 3). */
-  balls?: { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number }[];
+  balls?: { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number; correct: boolean; clickable: boolean }[];
+  /** The question prompt text and its rendered width (design px). */
+  prompt?: { text: string; width: number };
   stars?: number;
   litCards?: number;
   settings?: Settings;

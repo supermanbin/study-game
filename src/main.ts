@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { RENDER_SCALE } from './config';
 import { debugEnabled } from './game/debug';
-import { landscapeLayout } from './layout/game';
+import { layoutFor } from './layout/game';
+import { designSize } from './layout/select';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { ResultScene } from './scenes/ResultScene';
@@ -16,7 +17,7 @@ import { BG } from './ui/theme';
 mountTuningPanel();
 
 /** The layout applied for this page load (registry key `layout`, read through getLayout). */
-const initial = landscapeLayout();
+const initial = layoutFor(designSize(innerWidth, innerHeight));
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,

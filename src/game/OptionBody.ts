@@ -208,7 +208,7 @@ export class OptionBody {
   }
 
   /** Debug/e2e: body radius, shell geometry (displayed, so divide by `lookScaleX` during pop-in/squash) and the two layers' angles. */
-  debugInfo(): { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number } {
+  debugInfo(): { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number; correct: boolean; clickable: boolean } {
     return {
       radius: this.body?.circleRadius ?? this.radius,
       shellW: this.shell.displayWidth,
@@ -220,6 +220,8 @@ export class OptionBody {
       y: this.body?.position.y ?? this.container.y,
       shellAngle: this.shell.angle,
       stripeAngle: this.container.angle,
+      correct: this.correct,
+      clickable: this.clickable,
     };
   }
 
