@@ -90,6 +90,8 @@ test('rotate during the level-end hold', async ({ page }) => {
 
 test('flip-flop inside the settle window does nothing', async ({ page }) => {
   await waitMenu(page);
+  // A switch to landscape always bakes new textures, so an unchanged count proves none happened.
+  const before = await clayCount(page);
   await rotate(page);
   await page.waitForTimeout(100);
   await rotateBack(page);
@@ -97,6 +99,7 @@ test('flip-flop inside the settle window does nothing', async ({ page }) => {
   const s = await state(page);
   expect(s.layout).toEqual(PORTRAIT);
   expect(s.scene).toBe('Menu');
+  expect(await clayCount(page)).toBe(before);
 });
 
 test('cards page survives relayout', async ({ page }) => {
