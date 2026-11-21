@@ -23,6 +23,17 @@ await page.waitForTimeout(500);
 await shot('menu');
 
 await dbg('window.__funyDebug.unlockAll()');
+const toScene = async (label, scene) => {
+  await dbg(`window.__funyDebug.press(${JSON.stringify(label)})`);
+  await page.waitForFunction(s => window.__funyDebug.state().scene === s, scene);
+  await page.waitForTimeout(400);
+};
+await toScene('开始游戏', 'LevelSelect');
+await shot('levelselect');
+await toScene('返回', 'Menu');
+await toScene('设置', 'Settings');
+await shot('settings');
+await toScene('返回', 'Menu');
 await startLevel(1);
 await balls();
 await shot('game-l1');

@@ -25,14 +25,14 @@ export function bakeLayout(scene: Phaser.Scene, layout: Layout): void {
 /**
  * Bakes every constant-size texture of the menu-side scenes and Result (via bakeLayout, next to bakeAll and
  * prebakeHud), so entering a scene only looks textures up. Sizes and colours come from the scenes' own exports
- * (landscape sizes for every layout until the scenes get portrait variants).
+ * (level tiles per layout kind).
  * The lock and the decorative menu balls are fixed shapes / balls baked by bakeAll.
  */
-export function prebakeScenes(scene: Phaser.Scene, _layout: Layout): void {
+export function prebakeScenes(scene: Phaser.Scene, layout: Layout): void {
   for (const opts of Object.values(MENU_BUTTONS)) bakeButton(scene, opts);
   LEVELS.forEach((lv, i) => {
-    bakeButton(scene, levelTileOpts(lv, i, false));
-    bakeButton(scene, levelTileOpts(lv, i, true));
+    bakeButton(scene, levelTileOpts(lv, i, false, layout.kind));
+    bakeButton(scene, levelTileOpts(lv, i, true, layout.kind));
   });
   bakeStars(scene, LEVEL_STAR_SIZE);
   for (const f of ALL_FACTS) {

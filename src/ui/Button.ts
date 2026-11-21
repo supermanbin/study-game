@@ -13,6 +13,8 @@ export interface ButtonOpts {
   subtitle?: string;
   /** Shows this clay icon instead of the label text (the button still registers under `label`). */
   icon?: ClayShape;
+  /** Font size of the subtitle (default 20). */
+  subtitleSize?: number;
 }
 
 /** Pressed buttons sink this many design px. */
@@ -68,7 +70,7 @@ export function createButton(
   }
   if (opts.subtitle) {
     const sub = scene.add
-      .text(0, 6, opts.subtitle, { fontFamily: FONT_FAMILY, fontSize: '20px', ...labelStyle, strokeThickness: Math.min(3, labelStyle.strokeThickness) })
+      .text(0, 6, opts.subtitle, { fontFamily: FONT_FAMILY, fontSize: `${opts.subtitleSize ?? 20}px`, ...labelStyle, strokeThickness: Math.min(3, labelStyle.strokeThickness) })
       .setOrigin(0.5);
     parts.push([sub, 6]);
   }
