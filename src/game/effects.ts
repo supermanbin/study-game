@@ -1,11 +1,11 @@
 import Phaser from 'phaser';
-import { GAME_HEIGHT, GAME_WIDTH, RENDER_SCALE } from '../config';
+import { RENDER_SCALE } from '../config';
 import { Throttle } from '../audio/pickLine';
 import { bakeShape, type ClayTex } from '../ui/clay';
 import { CLAY_TEXT } from '../ui/claywidgets';
 import { BALL_COLORS } from '../ui/palette';
+import { getLayout } from '../ui/theme';
 import type { OptionBody } from './OptionBody';
-import { QUESTION_AREA_BOTTOM } from './tuning';
 
 /**
  * Effects draw over the balls (options 10, labels 11; spec section 7 allows this for juice) but stay under
@@ -24,6 +24,9 @@ const TEX = 1 / RENDER_SCALE;
 
 const sparkThrottle = new Throttle(80);
 
+/** Top of the play field (bottom of the question band): field effects never start above it. */
+const ceilingY = (scene: Phaser.Scene): number => getLayout(scene).field.ceilingY;
+
 /** One short particle burst from a pre-baked clay texture (bakeAll in Boot), so nothing is generated during play. */
 function burst(
   scene: Phaser.Scene,
@@ -33,7 +36,7 @@ function burst(
   count: number,
   lifespan: number,
   cfg: Phaser.Types.GameObjects.Particles.ParticleEmitterConfig,
-  minY = QUESTION_AREA_BOTTOM,
+  minY = ceilingY(scene),
   depth = FX_DEPTH,
 ): void {
   const em = scene.add.particles(Math.max(0, x), Math.max(minY, y), tex.key, {
@@ -78,7 +81,7 @@ export function confettiBurst(scene: Phaser.Scene, x: number, y: number, depth: 
 /** White ring scaling 1 -> 4 while fading, 450 ms. */
 export function shockwave(scene: Phaser.Scene, x: number, y: number): void {
   const ring = scene.add
-    .circle(x, Math.max(QUESTION_AREA_BOTTOM, y), 42, 0xffffff, 0)
+    .circle(x, Math.max(ceilingY(scene), y), 42, 0xffffff, 0)
     .setStrokeStyle(8, 0xffffff)
     .setDepth(RING_DEPTH);
   scene.tweens.add({ targets: ring, scale: 4, alpha: 0, duration: 450, onComplete: () => ring.destroy() });
@@ -87,9 +90,9 @@ export function shockwave(scene: Phaser.Scene, x: number, y: number): void {
 /** `+N` rising 120 px and fading, 900 ms. Nothing when delta <= 0. */
 export function floatScore(scene: Phaser.Scene, x: number, y: number, delta: number): void {
   if (delta <= 0) return;
-  const y0 = Math.max(QUESTION_AREA_BOTTOM + 130, y - 20);
+  const y0 = Math.max(ceilingY(scene) + 130, y - 20);
   const t = scene.add
-    .text(Phaser.Math.Clamp(x, 60, GAME_WIDTH - 60), y0, `+${delta}`, {
+    .text(Phaser.Math.Clamp(x, 60, getLayout(scene).width - 60), y0, `+${delta}`, {
       ...CLAY_TEXT,
       fontSize: '44px',
     })
@@ -100,8 +103,9 @@ export function floatScore(scene: Phaser.Scene, x: number, y: number, delta: num
 
 /** 「N 连击！」 96 px at the field centre, ~850 ms. */
 export function centerCombo(scene: Phaser.Scene, combo: number): void {
+  const { width, height } = getLayout(scene);
   const t = scene.add
-    .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, `${combo} 连击！`, {
+    .text(width / 2, height / 2, `${combo} 连击！`, {
       ...CLAY_TEXT,
       fontSize: '96px',
     })

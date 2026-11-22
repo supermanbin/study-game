@@ -5,8 +5,10 @@ import { createButton, type ButtonOpts } from '../ui/Button';
 import { clayBackground, clayToggle } from '../ui/claywidgets';
 import { BALL_COLORS, CLAY } from '../ui/palette';
 import { css } from '../ui/clay';
-import { getAudio, getProgress, getStore, title } from '../ui/theme';
+import { getAudio, getLayout, getProgress, getStore, title } from '../ui/theme';
+import { settingsScreen } from '../layout/screens';
 import { applyHiDpi } from '../ui/hiDpi';
+import { startScene } from '../layout/apply';
 
 const ROWS: { key: keyof Settings; label: string }[] = [
   { key: 'music', label: '音乐' },
@@ -25,18 +27,19 @@ export class SettingsScene extends Phaser.Scene {
   create(): void {
     applyHiDpi(this);
     clayBackground(this);
-    title(this, '设置', 90, 64);
+    const s = settingsScreen(getLayout(this));
+    title(this, '设置', s.title.y, s.title.size);
     ROWS.forEach((row, i) => {
-      const y = 230 + i * 120;
+      const r = s.rows[i];
       const on = getProgress(this).settings[row.key];
       const toggle = () => this.toggle(row.key);
-      createButton(this, 640, y, row.label, toggle, SETTINGS_ROW_BUTTON);
-      clayToggle(this, 850, y - 8, on, toggle);
+      createButton(this, r.button.x, r.button.y, row.label, toggle, SETTINGS_ROW_BUTTON);
+      clayToggle(this, r.toggle.x, r.toggle.y, on, toggle);
       this.add
-        .text(850, y + 34, on ? '开' : '关', { fontFamily: FONT_FAMILY, fontSize: '22px', color: css(CLAY.ink2), fontStyle: 'bold' })
+        .text(r.state.x, r.state.y, on ? '开' : '关', { fontFamily: FONT_FAMILY, fontSize: `${s.stateSize}px`, color: css(CLAY.ink2), fontStyle: 'bold' })
         .setOrigin(0.5);
     });
-    createButton(this, 640, 620, '返回', () => this.scene.start('Menu'), SETTINGS_BACK);
+    createButton(this, s.back.x, s.back.y, '返回', () => startScene(this, 'Menu'), SETTINGS_BACK);
   }
 
   private toggle(key: keyof Settings): void {

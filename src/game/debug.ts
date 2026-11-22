@@ -1,11 +1,18 @@
 import type Phaser from 'phaser';
-import type { LevelId } from '../core/types';
+import type { LayoutKind, LevelId } from '../core/types';
+import type { Layout } from '../layout/game';
 import type { ProgressData, Settings } from '../core/progress';
 import type { ProgressStore } from '../core/store';
 import { pressButton } from '../ui/Button';
+import { currentAudioPath, type AudioPath } from '../audio/mobileAudio';
+import { applyPendingLayout } from '../layout/apply';
 
 export interface DebugState {
   scene: string;
+  /** How iOS silent-switch audio was set up: 'audioSession', 'silentLoop' or 'none'. */
+  audioPath: AudioPath;
+  /** The applied layout (registry `layout`). */
+  layout: { kind: LayoutKind; width: number; height: number };
   questionIndex?: number;
   score?: number;
   status?: string;
@@ -19,12 +26,23 @@ export interface DebugState {
   nextQuestionPending?: boolean;
   /** True during the level-end hold (final effects playing, Result not started yet). */
   levelEnding?: boolean;
+  /** Game: the pause panel carries the 'turn the phone back' line (the window shape no longer matches the layout). */
+  rotateHint?: boolean;
   /** Result scene: true from create() until the entrance celebration has finished. */
   celebrating?: boolean;
-  /** Balls in the world: body radius, clay shell geometry, shell / stripe angles (Review Focus 3). */
-  balls?: { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number }[];
+  /**
+   * Balls in the world: body radius, clay shell geometry, shell / stripe angles (Review Focus 3); `restMs` is the
+   * continuous resting time (a rest-based miss needs REST_MISS_MS of it on every correct ball).
+   */
+  balls?: { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number; correct: boolean; clickable: boolean; restMs: number }[];
+  /** The question prompt text and its rendered width (design px). */
+  prompt?: { text: string; width: number };
   stars?: number;
   litCards?: number;
+  /** Cards on screen (portrait: the current page's). */
+  cardsShown?: number;
+  /** Portrait only: the visible 口诀 page. */
+  cardsPage?: 0 | 1;
   settings?: Settings;
   /** Boot's clay pre-bake: elapsed ms and the number of `clay:` textures right after it. */
   clayBake?: { ms: number; textures: number };
@@ -76,6 +94,9 @@ export function installDebug(game: Phaser.Game): void {
     doubleClickCorrect: () => active()?.debugDoubleClickCorrect?.(),
     clickResolvedOption: () => active()?.debugClickResolved?.(),
     startLevel: (id: LevelId) => {
+      // Like every scene change (startScene): a layout pending since a rotation takes effect now.
+      const from = game.scene.getScenes(true)[0];
+      if (from) applyPendingLayout(game, from);
       for (const s of game.scene.getScenes(true)) if (s.scene.key !== 'Game') game.scene.stop(s.scene.key);
       game.scene.start('Game', { levelId: id });
     },
@@ -93,7 +114,8 @@ export function installDebug(game: Phaser.Game): void {
       const s = active();
       const settings = (game.registry.get('progress') as ProgressData | undefined)?.settings;
       const clayBake = game.registry.get('clayBake') as DebugState['clayBake'];
-      return { scene: s?.scene.key ?? 'none', settings, clayBake, ...(s?.debugState?.() ?? {}) };
+      const { kind, width, height } = game.registry.get('layout') as Layout;
+      return { scene: s?.scene.key ?? 'none', audioPath: currentAudioPath(), layout: { kind, width, height }, settings, clayBake, ...(s?.debugState?.() ?? {}) };
     },
   };
 }

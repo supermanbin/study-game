@@ -421,23 +421,26 @@ export function bakeRoundRectPair(scene: Phaser.Scene, w: number, h: number, r: 
   return { raised, pressed };
 }
 
-/** Full-screen cream radial (design 1280×720, displayed 1:1: a smooth gradient needs no extra resolution). */
-export function bakeBackground(scene: Phaser.Scene): string {
-  const key = clayKey('bg', 1280, 720);
+/**
+ * Full-screen cream radial, w×h design px (displayed 1:1: a smooth gradient needs no extra resolution).
+ * At 1280×720 the gradient runs from (640, 330, r 40) to (640, 360, r 800).
+ */
+export function bakeBackground(scene: Phaser.Scene, w: number, h: number): string {
+  const key = clayKey('bg', w, h);
   if (scene.textures.exists(key)) return key;
-  const { canvas, ctx } = newCanvas(1280, 720);
-  const g = ctx.createRadialGradient(640, 330, 40, 640, 360, 800);
+  const { canvas, ctx } = newCanvas(w, h);
+  const g = ctx.createRadialGradient(w / 2, (h * 330) / 720, 40, w / 2, h / 2, 0.625 * Math.max(w, h));
   g.addColorStop(0, css(CLAY.bgInner));
   g.addColorStop(1, css(CLAY.bgOuter));
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, 1280, 720);
+  ctx.fillRect(0, 0, w, h);
   scene.textures.addCanvas(key, canvas);
   return key;
 }
 
 export type ClayShape =
   | 'star' | 'starOff' | 'lock' | 'monster' | 'monsterHurt' | 'chest' | 'peg' | 'dot' | 'hpOn' | 'hpOff'
-  | 'particleBall' | 'particleStar';
+  | 'particleBall' | 'particleStar' | 'pause';
 
 /** Design sizes of the fixed shapes (the box the shape fills; shadows are padding outside it). */
 export const SHAPE_SIZE: Record<ClayShape, { w: number; h: number }> = {
@@ -453,6 +456,7 @@ export const SHAPE_SIZE: Record<ClayShape, { w: number; h: number }> = {
   hpOff: { w: 12, h: 16 },
   particleBall: { w: 14, h: 14 },
   particleStar: { w: 20, h: 20 },
+  pause: { w: 22, h: 24 },
 };
 
 const DEFAULT_SHAPE_COLOR: Record<ClayShape, number> = {
@@ -468,6 +472,7 @@ const DEFAULT_SHAPE_COLOR: Record<ClayShape, number> = {
   hpOff: CLAY.hpOff,
   particleBall: BALL_COLORS[0],
   particleStar: BALL_COLORS[3],
+  pause: CLAY.ink2,
 };
 
 const EYE_INK = 0x4a3a6a;
@@ -545,6 +550,15 @@ export function bakeShape(scene: Phaser.Scene, kind: ClayShape, color?: number, 
       case 'dot':
       case 'particleBall':
         paintClay(ctx, c => circle(c, cx, cy, size / 2), col, size, { inset });
+        break;
+      case 'pause':
+        // Two rounded bars, 8 wide with a 6 gap.
+        paintClay(ctx, c => {
+          roundRectPath(c, ox, oy, 8, h, 4);
+          c.fill();
+          roundRectPath(c, ox + 14, oy, 8, h, 4);
+          c.fill();
+        }, col, size);
         break;
       case 'hpOn':
       case 'hpOff':
@@ -629,10 +643,10 @@ export function starSlots(size: number): { x: number; y: number }[] {
 /** Ball radii in use: number balls and expression balls (= collision radii). */
 const BALL_RADII = [NUMBER_RADIUS, EXPR_RADIUS];
 
-/** Pre-bakes every fixed-size clay texture (call from Boot). Returns the elapsed ms. */
-export function bakeAll(scene: Phaser.Scene): number {
+/** Pre-bakes every fixed-size clay texture, the background at `size` (call from Boot). Returns the elapsed ms. */
+export function bakeAll(scene: Phaser.Scene, size: { width: number; height: number }): number {
   const t0 = performance.now();
-  bakeBackground(scene);
+  bakeBackground(scene, size.width, size.height);
   for (const r of BALL_RADII) {
     for (const c of BALL_COLORS) bakeBall(scene, c, r);
     bakeBall(scene, CLAY.faded, r, true);

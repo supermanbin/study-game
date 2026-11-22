@@ -2,10 +2,23 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="九九乘法" />
+    <meta name="theme-color" content="#efe5d8" />
+    <link rel="apple-touch-icon" href="/icons/icon-180.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <title>九九乘法闯关</title>
     <style>
-      html, body { margin: 0; height: 100%; background: #fdf6e3; overflow: hidden; }
+      html, body {
+        margin: 0; height: 100%; background: #efe5d8; overflow: hidden;
+        touch-action: none; overscroll-behavior: none;
+        user-select: none; -webkit-user-select: none;
+        -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+      }
+      canvas { touch-action: none; }
     </style>
   </head>
   <body>

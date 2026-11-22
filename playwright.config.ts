@@ -7,6 +7,14 @@ export default defineConfig({
   workers: 1,
   expect: { timeout: 15_000 },
   use: { baseURL: 'http://localhost:5199' },
+  projects: [
+    { name: 'desktop', testIgnore: '**/mobile/**' },
+    {
+      name: 'mobile',
+      use: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, isMobile: true, hasTouch: true },
+      testMatch: ['**/mobile/**/*.spec.ts', '**/pause.spec.ts'],
+    },
+  ],
   webServer: {
     command: 'npm run dev -- --port 5199',
     url: 'http://localhost:5199',

@@ -1,21 +1,12 @@
 import Phaser from 'phaser';
-import { FONT_FAMILY, GAME_WIDTH, RENDER_SCALE } from '../config';
+import { FONT_FAMILY, RENDER_SCALE } from '../config';
 import { bakeBall, bakeStripe, clayImage, labelStyleFor } from '../ui/clay';
 import { BALL_COLORS, CLAY } from '../ui/palette';
 import { RestTimer, StuckTimer } from './motion';
-import { clearOfPegsX } from './Pegs';
+import type { FieldLayout } from '../layout/game';
+import { clearOfPegsX } from '../layout/pegs';
 import type { PhysicsTuning } from './physicsTuning';
-import {
-  BALL_DENSITY,
-  BALL_FRICTION,
-  EXPR_RADIUS,
-  HEAVY_DENSITY,
-  NUMBER_RADIUS,
-  QUESTION_AREA_BOTTOM,
-  SPAWN_X_MAX,
-  SPAWN_X_MIN,
-  TOSS_Y,
-} from './tuning';
+import { BALL_DENSITY, BALL_FRICTION, EXPR_RADIUS, HEAVY_DENSITY, NUMBER_RADIUS } from './tuning';
 
 /** `resolved`: the question was answered; the ball waits for its fade-out and is no longer clickable. */
 export type OptionState = 'falling' | 'grey' | 'resolved' | 'removed';
@@ -26,9 +17,6 @@ const STRIPE_DEPTH = 10.5;
 const LABEL_DEPTH = 11;
 /** Clay images are baked at RENDER_SCALE and shown at 1/RENDER_SCALE. */
 const TEX_SCALE = 1 / RENDER_SCALE;
-/** Toss launch: thrown in from just inside the side walls. */
-const TOSS_LEFT_X = 70;
-const TOSS_RIGHT_X = GAME_WIDTH - 70;
 const byBody = new WeakMap<MatterJS.BodyType, OptionBody>();
 /** Grace window for direct ground contact only (contact flicker); propagated support gets none. */
 const GROUND_GRACE_MS = 100;
@@ -83,6 +71,8 @@ export class OptionBody {
   body: MatterJS.BodyType | null = null;
 
   private readonly scene: Phaser.Scene;
+  /** Play field geometry (ceiling, spawn range, toss start, pegs). */
+  private readonly field: FieldLayout;
   /** Matter game object: rotates with the body; holds only the stripe. Never scaled. */
   private readonly container: Phaser.GameObjects.Container;
   private readonly stripe: Phaser.GameObjects.Image;
@@ -101,8 +91,10 @@ export class OptionBody {
     return byBody.get(body.parent ?? body);
   }
 
-  constructor(scene: Phaser.Scene, spec: OptionSpec) {
+  constructor(scene: Phaser.Scene, spec: OptionSpec, field: FieldLayout) {
     this.scene = scene;
+    this.field = field;
+    const { tossY } = field;
     this.questionSerial = spec.questionSerial;
     this.optionId = spec.optionId;
     this.label = spec.label;
@@ -113,12 +105,12 @@ export class OptionBody {
     this.color = BALL_COLORS[spec.colorIndex % BALL_COLORS.length];
 
     // Pre-baked in Boot (bakeAll): these only look up cached textures.
-    this.shell = clayImage(scene, spec.x, TOSS_Y, bakeBall(scene, this.color, this.radius)).setDepth(SHELL_DEPTH).setVisible(false);
+    this.shell = clayImage(scene, spec.x, tossY, bakeBall(scene, this.color, this.radius)).setDepth(SHELL_DEPTH).setVisible(false);
     this.stripe = clayImage(scene, 0, 0, bakeStripe(scene, this.radius));
-    this.container = scene.add.container(spec.x, TOSS_Y, [this.stripe]).setVisible(false).setDepth(STRIPE_DEPTH);
+    this.container = scene.add.container(spec.x, tossY, [this.stripe]).setVisible(false).setDepth(STRIPE_DEPTH);
     this.container.setSize(this.radius * 2, this.radius * 2);
     this.text = scene.add
-      .text(spec.x, TOSS_Y, spec.label, {
+      .text(spec.x, tossY, spec.label, {
         fontFamily: FONT_FAMILY,
         fontSize: expr ? '28px' : '40px',
         fontStyle: 'bold',
@@ -215,8 +207,11 @@ export class OptionBody {
       .setScale(sx * TEX_SCALE, sy * TEX_SCALE);
   }
 
-  /** Debug/e2e: body radius, shell geometry (displayed, so divide by `lookScaleX` during pop-in/squash) and the two layers' angles. */
-  debugInfo(): { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number } {
+  /**
+   * Debug/e2e: body radius, shell geometry (displayed, so divide by `lookScaleX` during pop-in/squash), the two
+   * layers' angles and the continuous resting time (game ms).
+   */
+  debugInfo(): { radius: number; shellW: number; lookScaleX: number; shellOriginX: number; shellX: number; shellY: number; x: number; y: number; shellAngle: number; stripeAngle: number; correct: boolean; clickable: boolean; restMs: number } {
     return {
       radius: this.body?.circleRadius ?? this.radius,
       shellW: this.shell.displayWidth,
@@ -228,6 +223,9 @@ export class OptionBody {
       y: this.body?.position.y ?? this.container.y,
       shellAngle: this.shell.angle,
       stripeAngle: this.container.angle,
+      correct: this.correct,
+      clickable: this.clickable,
+      restMs: this.rest.ms,
     };
   }
 
@@ -311,19 +309,21 @@ export class OptionBody {
   private placeAtStart(t: PhysicsTuning): void {
     const body = this.body!;
     const m = this.scene.matter;
-    // The body must start fully below the ceiling (bottom edge at QUESTION_AREA_BOTTOM).
-    const minY = QUESTION_AREA_BOTTOM + this.radius + 2;
+    const f = this.field;
+    // The body must start fully below the ceiling (bottom edge at field.ceilingY).
+    const minY = f.ceilingY + this.radius + 2;
     let x: number, y: number, vx: number, vy: number;
     if (t.launch === 'toss') {
+      // Thrown in from just inside the side walls (tossInset from each wall).
       const left = this.launchIndex % 2 === 0;
-      y = Math.max(TOSS_Y, minY);
-      x = clearOfPegsX(left ? TOSS_LEFT_X : TOSS_RIGHT_X, y, this.radius, this.radius, GAME_WIDTH - this.radius);
+      y = Math.max(f.tossY, minY);
+      x = clearOfPegsX(left ? f.tossInset : f.width - f.tossInset, y, this.radius, this.radius, f.width - this.radius, f);
       vx = (left ? 1 : -1) * Phaser.Math.FloatBetween(5, 11);
       vy = Phaser.Math.FloatBetween(-7, -2);
     } else {
       y = minY;
       // Keep the ball horizontally clear of the top peg row so it never spawns overlapping a peg.
-      x = clearOfPegsX(this.dropX, y, this.radius, SPAWN_X_MIN, SPAWN_X_MAX);
+      x = clearOfPegsX(this.dropX, y, this.radius, f.spawnXMin, f.spawnXMax, f);
       vx = Phaser.Math.FloatBetween(-2, 2);
       vy = 0;
     }

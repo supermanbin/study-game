@@ -1,15 +1,14 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, FONT_FAMILY } from '../config';
+import { FONT_FAMILY } from '../config';
 import { VOICE_LINES, voicePath } from '../audio/voiceLines';
 import { AudioService } from '../audio/AudioService';
 import { defaultProgress, type ProgressData } from '../core/progress';
 import { mulberry32 } from '../core/rng';
 import { LocalStorageProgressStore, safeLocalStorage } from '../core/store';
-import { bakeAll } from '../ui/clay';
-import { prebakeHud } from '../game/Hud';
-import { prebakeScenes } from './prebake';
+import { bakeLayout } from './prebake';
 import { applyHiDpi } from '../ui/hiDpi';
-import { BG, INK } from '../ui/theme';
+import { BG, INK, getLayout } from '../ui/theme';
+import { startScene } from '../layout/apply';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -24,10 +23,9 @@ export class BootScene extends Phaser.Scene {
 
   async create(): Promise<void> {
     applyHiDpi(this);
+    const layout = getLayout(this);
     const t0 = performance.now();
-    bakeAll(this);
-    prebakeHud(this);
-    prebakeScenes(this);
+    bakeLayout(this, layout);
     const bakeMs = performance.now() - t0;
     if (import.meta.env.DEV) console.info(`clay bake: ${bakeMs.toFixed(0)} ms`);
     const registry = this.game.registry;
@@ -43,7 +41,7 @@ export class BootScene extends Phaser.Scene {
     );
     this.cameras.main.setBackgroundColor(BG);
     this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, '九九乘法闯关', {
+      .text(layout.width / 2, layout.height / 2, '九九乘法闯关', {
         fontFamily: FONT_FAMILY,
         fontSize: '72px',
         color: INK,
@@ -53,6 +51,6 @@ export class BootScene extends Phaser.Scene {
     const store = new LocalStorageProgressStore(safeLocalStorage());
     registry.set('store', store);
     registry.set('progress', await store.load());
-    this.scene.start('Menu');
+    startScene(this, 'Menu');
   }
 }

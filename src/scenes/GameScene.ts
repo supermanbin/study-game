@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { GAME_HEIGHT, GAME_WIDTH } from '../config';
 import type { AudioService } from '../audio/AudioService';
 import { getLevel } from '../core/levels';
 import { applyLevelResult, recordOutcome, type ProgressData } from '../core/progress';
@@ -8,6 +7,7 @@ import { mulberry32 } from '../core/rng';
 import { LevelSession, type ItemKind, type LevelResult } from '../core/session';
 import { safeLocalStorage, type ProgressStore } from '../core/store';
 import type { LevelId } from '../core/types';
+import type { Layout } from '../layout/game';
 import type { DebuggableScene, DebugState } from '../game/debug';
 import { Hud } from '../game/Hud';
 import { Boss } from '../game/Boss';
@@ -29,20 +29,17 @@ import { loadTuning, type PhysicsTuning } from '../game/physicsTuning';
 import { PileOverflowTracker } from '../game/pile';
 import {
   BOSS_DEFEAT_HOLD_MS,
-  GROUND_Y,
   LEVEL_END_HOLD_MS,
   LEVEL_GRAVITY_FACTOR,
   MAX_FRAME_DELTA_MS,
   MISS_REVEAL_MS,
   PILE_OVERFLOW_MS,
-  QUESTION_AREA_BOTTOM,
   SPAWN_STAGGER_MS,
-  SPAWN_X_MAX,
-  SPAWN_X_MIN,
-  WARNING_LINE_Y,
 } from '../game/tuning';
 import { applyHiDpi } from '../ui/hiDpi';
 import { clayBackground } from '../ui/claywidgets';
+import { getLayout } from '../ui/theme';
+import { LAYOUT_MISMATCH_EVENT, startScene } from '../layout/apply';
 
 /** After a correct answer: the other balls fade at this point, the next question starts after the second. */
 const RESOLVED_VANISH_MS = 700;
@@ -68,7 +65,9 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   private hud!: Hud;
   private options: OptionBody[] = [];
   private serial = 0;
-  private tracker = new PileOverflowTracker(WARNING_LINE_Y, PILE_OVERFLOW_MS);
+  /** The applied layout, read once in create() (it changes only between scenes). */
+  private layout!: Layout;
+  private tracker!: PileOverflowTracker;
   private leaving = false;
   private boss?: Boss;
   private voiceSeq = 0;
@@ -82,6 +81,8 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   private pegsEnabled = false;
   /** Option-option contacts since the last update(); support passes from grounded balls through these. */
   private contacts: [OptionBody, OptionBody][] = [];
+  /** The pause panel carries the 'rotate the phone back' line (the window no longer matches the layout). */
+  private rotateHint = false;
 
   constructor() {
     super('Game');
@@ -91,7 +92,6 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.levelId = data.levelId ?? 1;
     this.options = [];
     this.serial = 0;
-    this.tracker = new PileOverflowTracker(WARNING_LINE_Y, PILE_OVERFLOW_MS);
     this.leaving = false;
     this.boss = undefined;
     this.voiceSeq = 0;
@@ -99,6 +99,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.endHold = undefined;
     this.pegs = undefined;
     this.contacts = [];
+    this.rotateHint = false;
   }
 
   private get progress(): ProgressData {
@@ -120,6 +121,8 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
 
   create(): void {
     applyHiDpi(this);
+    this.layout = getLayout(this);
+    this.tracker = new PileOverflowTracker(this.layout.field.warningY, PILE_OVERFLOW_MS);
     this.noTime = location.search.includes('debug') && location.search.includes('notime');
     this.gameMs = 0;
     // Light cream, so the clay balls pop.
@@ -135,11 +138,12 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
         void (this.registry.get('store') as ProgressStore).save(this.progress).catch(() => undefined);
       },
     });
-    this.hud = new Hud(
-      this,
-      kind => this.useItem(kind),
-      () => this.setPaused(false),
-    );
+    this.hud = new Hud(this, this.layout, {
+      onItem: kind => this.useItem(kind),
+      onPause: () => this.setPaused(true),
+      onResume: () => this.setPaused(false),
+      onExit: () => void this.exitToLevelSelect(),
+    });
     this.buildWorld();
     this.bindInput();
     this.setupFeedback();
@@ -188,12 +192,13 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   /** Escape respawn, stuck nudge and rest timing for every ball in the world. */
   private updateMotion(dt: number): void {
     const now = this.time.now;
+    const { width, groundY } = this.layout.field;
     const live = this.options.filter(o => o.body);
     // Support must be grounded: fresh each frame from ground contacts, then through this frame's contacts.
     const supported = groundedSet(this.contacts, live.filter(o => o.grounded(now)));
     for (const o of live) o.supported = supported.has(o);
     for (const o of live) {
-      if (outOfField(o.x, o.y, GAME_WIDTH, GROUND_Y)) {
+      if (outOfField(o.x, o.y, width, groundY)) {
         o.respawn(this.tuning);
         continue;
       }
@@ -215,13 +220,14 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
   // ---- setup ----
 
   private buildWorld(): void {
-    this.matter.add.rectangle(GAME_WIDTH / 2, GROUND_Y + 50, GAME_WIDTH + 400, 100, { isStatic: true, label: 'ground' });
-    const wallH = GAME_HEIGHT + 1000;
-    this.matter.add.rectangle(-25, GAME_HEIGHT - wallH / 2, 50, wallH, { isStatic: true, label: 'wall' });
-    this.matter.add.rectangle(GAME_WIDTH + 25, GAME_HEIGHT - wallH / 2, 50, wallH, { isStatic: true, label: 'wall' });
+    const { width, height, groundY, ceilingY } = this.layout.field;
+    this.matter.add.rectangle(width / 2, groundY + 50, width + 400, 100, { isStatic: true, label: 'ground' });
+    const wallH = height + 1000;
+    this.matter.add.rectangle(-25, height - wallH / 2, 50, wallH, { isStatic: true, label: 'wall' });
+    this.matter.add.rectangle(width + 25, height - wallH / 2, 50, wallH, { isStatic: true, label: 'wall' });
     // Invisible ceiling: its bottom edge is the question band's bottom, so tossed balls bounce back.
-    this.matter.add.rectangle(GAME_WIDTH / 2, QUESTION_AREA_BOTTOM - 50, GAME_WIDTH + 400, 100, { isStatic: true, label: 'ceiling' });
-    this.pegs = new Pegs(this, this.tuning.pegs);
+    this.matter.add.rectangle(width / 2, ceilingY - 50, width + 400, 100, { isStatic: true, label: 'ceiling' });
+    this.pegs = new Pegs(this, this.tuning.pegs, this.layout.field);
     this.pegsEnabled = this.tuning.pegs;
 
     const onCollide = (e: Phaser.Physics.Matter.Events.CollisionStartEvent) => {
@@ -269,7 +275,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
 
   private bindInput(): void {
     this.input.on('pointerdown', (p: Phaser.Input.Pointer, over: Phaser.GameObjects.GameObject[]) => {
-      if (p.worldY < QUESTION_AREA_BOTTOM || over.some(o => this.hud.swallowsClick(o))) return;
+      if (p.worldY < this.layout.field.ceilingY || over.some(o => this.hud.swallowsClick(o))) return;
       const hit = this.currentOptions().find(o => o.clickable && o.contains(p.worldX, p.worldY));
       if (hit) this.onOptionPointer(hit);
     });
@@ -281,12 +287,34 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     kb.on('keydown-TWO', () => this.useItem('magnifier'));
 
     const autoPause = () => this.setPaused(true);
+    const onMismatch = (mismatch: boolean) => this.onLayoutMismatch(mismatch);
     this.game.events.on(Phaser.Core.Events.BLUR, autoPause);
     this.game.events.on(Phaser.Core.Events.HIDDEN, autoPause);
+    this.game.events.on(LAYOUT_MISMATCH_EVENT, onMismatch);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.game.events.off(Phaser.Core.Events.BLUR, autoPause);
       this.game.events.off(Phaser.Core.Events.HIDDEN, autoPause);
+      this.game.events.off(LAYOUT_MISMATCH_EVENT, onMismatch);
     });
+  }
+
+  /**
+   * The window was turned away from this level's layout (true) or back (false). The layout stays as it is: the
+   * game pauses with a hint to turn the phone back, and only the child's 继续游戏 resumes it. Only the turn away
+   * pauses: later resizes while still turned (toolbar show/hide, window drags) leave a child who chose to go on
+   * playing. During the level-end hold (won / lost) nothing happens.
+   */
+  private onLayoutMismatch(mismatch: boolean): void {
+    if (!mismatch) {
+      this.rotateHint = false;
+      this.hud.setRotateHint(null);
+      return;
+    }
+    const st = this.session.status;
+    if (this.rotateHint || this.leaving || (st !== 'playing' && st !== 'paused')) return;
+    this.rotateHint = true;
+    this.hud.setRotateHint(this.layout.kind === 'portrait' ? '把手机竖过来，再点继续吧' : '把手机横过来，再点继续吧');
+    this.setPaused(true);
   }
 
   // ---- questions ----
@@ -309,25 +337,30 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.tuning = loadTuning(safeLocalStorage());
     if (this.tuning.pegs !== this.pegsEnabled) {
       this.pegs?.destroy();
-      this.pegs = new Pegs(this, this.tuning.pegs);
+      this.pegs = new Pegs(this, this.tuning.pegs, this.layout.field);
       this.pegsEnabled = this.tuning.pegs;
     }
     const tuning = this.tuning;
     const q = this.session.question;
     this.hud.setPrompt(q.prompt);
+    const field = this.layout.field;
     const n = q.options.length;
-    const slotW = (SPAWN_X_MAX - SPAWN_X_MIN) / n;
+    const slotW = (field.spawnXMax - field.spawnXMin) / n;
     const slots = Phaser.Utils.Array.Shuffle([...Array(n).keys()]);
     q.options.forEach((spec, k) => {
-      const x = SPAWN_X_MIN + slotW * (slots[k] + 0.5) + Phaser.Math.FloatBetween(-0.25, 0.25) * slotW;
-      const opt = new OptionBody(this, {
-        questionSerial: this.serial,
-        optionId: spec.id,
-        label: spec.label,
-        correct: spec.correct,
-        x,
-        colorIndex: this.serial + k,
-      });
+      const x = field.spawnXMin + slotW * (slots[k] + 0.5) + Phaser.Math.FloatBetween(-0.25, 0.25) * slotW;
+      const opt = new OptionBody(
+        this,
+        {
+          questionSerial: this.serial,
+          optionId: spec.id,
+          label: spec.label,
+          correct: spec.correct,
+          x,
+          colorIndex: this.serial + k,
+        },
+        field,
+      );
       this.options.push(opt);
       if (k === 0) opt.launch(tuning, k, x);
       else this.time.delayedCall(k * SPAWN_STAGGER_MS, () => opt.launch(tuning, k, x));
@@ -421,7 +454,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
 
   private setupFeedback(): void {
     if (this.session.level.boss) {
-      this.boss = new Boss(this, 1190, 92);
+      this.boss = new Boss(this, this.layout.hud.boss.x, this.layout.hud.boss.y);
       this.boss.setHp(this.session.bossHp());
     }
     this.events.off('session-event');
@@ -519,7 +552,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.leaving = true;
     this.matter.world.pause();
     await (this.registry.get('store') as ProgressStore).save(this.progress);
-    this.scene.start('LevelSelect');
+    startScene(this, 'LevelSelect');
   }
 
   /**
@@ -552,7 +585,7 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
     this.emitEvent({ type: 'end', result });
     this.progress = applyLevelResult(this.progress, result, Date.now());
     await (this.registry.get('store') as ProgressStore).save(this.progress);
-    this.scene.start('Result', { result });
+    startScene(this, 'Result', { result });
   }
 
   private emitEvent(e: SessionEvent): void {
@@ -573,6 +606,8 @@ export class GameScene extends Phaser.Scene implements DebuggableScene {
       pileCount: this.pileOptions().length,
       nextQuestionPending: !!this.pendingStart,
       levelEnding: !!this.endHold && !this.leaving,
+      rotateHint: this.rotateHint,
+      prompt: this.hud.promptInfo(),
       balls: this.options.filter(o => o.body).map(o => o.debugInfo()),
       // bossHp / bossMode exist only on boss levels (3 and 6).
       ...(s.level.boss ? { bossHp: s.bossHp(), bossMode: this.boss?.mode } : {}),
